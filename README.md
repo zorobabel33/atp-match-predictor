@@ -19,6 +19,7 @@ Details of each dataset version are in `ml/README_data.md`.
 
 ```
 .github/workflows/   CI (pull requests), CT, staging and deployment workflows
+data/                DVC pointers for the prepared releases (v1.dvc, v2.dvc), data on Azure Blob
 ml/                  data contract, data preparation, training pipeline, promotion policy
 tests/               unit and pipeline tests, run in CI without DagsHub or Azure
 app/                 web app and inference service (Dockerfile at the repository root)
