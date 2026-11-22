@@ -111,6 +111,11 @@ Settings come from the environment, never from the code or the image.
 | `MLFLOW_TRACKING_PASSWORD` | GitHub secret | CT, app, deploy |
 | `AZURE_SAS_TOKEN` | GitHub secret | CT (DVC pull from Azure Blob) |
 | `MODEL_NAME` | environment, default `atp-match-winner` | CT, app |
+| `MLFLOW_EXPERIMENT_NAME` | environment, default `atp-match-winner` | CT |
+
+Registered model names: `atp-match-winner` (production, used only by the CT workflow),
+`atp-match-winner-dev` (local runs on the real data), `atp-match-winner-staging` (controlled
+demonstrations on synthetic releases, see `ml/README_experiments.md`).
 
 ## Local development
 
@@ -120,4 +125,14 @@ source .venv/bin/activate        # Windows: .venv\Scripts\activate
 python -m pip install -r requirements-dev.txt
 ruff check .
 pytest
+```
+
+Training pipeline against the shared registry (put the MLflow variables in a local `.env`, never
+committed, and the SAS token in `.dvc/config.local`):
+
+```bash
+export MODEL_NAME=atp-match-winner-dev MLFLOW_EXPERIMENT_NAME=atp-match-winner-dev
+python -m ml.pipeline --dataset-version v1   # writes results/decision.json
+python -m ml.pipeline --rollback 1           # move champion back to an approved version
+python -m ml.compare_models                  # model selection on training seasons only
 ```
