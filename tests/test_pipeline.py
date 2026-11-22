@@ -51,7 +51,8 @@ def test_bootstrap_then_retain_on_the_same_release(registry, tmp_path):
     version = registry.get_model_version(MODEL, "1")
     assert version.tags[APPROVAL_TAG] == "approved"
     assert version.tags["dataset_version"] == "v1"
-    assert decision["git_sha"] and decision["dvc_md5"].endswith(".dir")
+    assert decision["git_sha"] and decision["data_source"] == "local"
+    assert "dvc_md5" not in decision
 
     code, decision = run(tmp_path, "--dataset-version", "v1")
     assert code == 0

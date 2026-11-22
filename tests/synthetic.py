@@ -1,5 +1,8 @@
 """Small contract-compliant releases for tests, so CI never needs Azure or DagsHub."""
 
+import sys
+from pathlib import Path
+
 import numpy as np
 import pandas as pd
 
@@ -44,3 +47,12 @@ def write_release(root, version, driver, seed=0, rows_per_season=120):
     train.to_csv(folder / "train.csv", index=False)
     evaluation.to_csv(folder / "evaluation.csv", index=False)
     return {"train": folder / "train.csv", "evaluation": folder / "evaluation.csv"}
+
+
+if __name__ == "__main__":
+    # Controlled demonstration data: v1 winners depend on age, v2 winners on rank (concept drift),
+    # so the v1 champion loses its edge on v2 and a retrained candidate is promoted.
+    target = Path(sys.argv[1])
+    write_release(target, "v1", driver="age")
+    write_release(target, "v2", driver="rank")
+    print(f"Synthetic v1 and v2 written to {target}")

@@ -51,9 +51,13 @@ def _write_json(path, data):
 
 
 def run_release(client, name, release, workspace, result):
-    result["dvc_md5"] = dvc_hash(release)
-    mlflow.log_param("dvc_md5", result["dvc_md5"])
-    shutil.copyfile(dvc_pointer(release), workspace / f"{release}.dvc")
+    # DATA_DIR replaces DVC for tests and controlled demonstrations: never log a DVC hash then.
+    result["data_source"] = "local" if os.getenv("DATA_DIR") else "dvc"
+    mlflow.set_tag("data_source", result["data_source"])
+    if result["data_source"] == "dvc":
+        result["dvc_md5"] = dvc_hash(release)
+        mlflow.log_param("dvc_md5", result["dvc_md5"])
+        shutil.copyfile(dvc_pointer(release), workspace / f"{release}.dvc")
     train, evaluation = validate_release(fetch(release))
     result["validation"] = "passed"
     mlflow.set_tag("validation", "passed")
@@ -104,7 +108,8 @@ def run_release(client, name, release, workspace, result):
     _log_scores("candidate", scores)
     result["candidate_metrics"] = scores
     model_uri = record_candidate(estimator, train, {
-        "dataset_version": release, "dvc_md5": result["dvc_md5"], "run_id": result["run_id"],
+        "dataset_version": release, "data_source": result["data_source"],
+        "dvc_md5": result.get("dvc_md5") or "none", "run_id": result["run_id"],
         "roc_auc": scores["roc_auc"],
     })
     result["candidate_model_uri"] = model_uri
@@ -116,7 +121,8 @@ def run_release(client, name, release, workspace, result):
 
     target = register_approved(client, name, model_uri, {
         "dataset_version": release,
-        "dvc_md5": result["dvc_md5"],
+        "data_source": result["data_source"],
+        "dvc_md5": result.get("dvc_md5") or "none",
         "training_last_date": int(train["tourney_date"].max()),
         "approval_roc_auc": scores["roc_auc"],
         "approval_run_id": result["run_id"],
