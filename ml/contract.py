@@ -9,6 +9,21 @@ FEATURES = (*MATCH_FEATURES, *PLAYER_A_FEATURES, *PLAYER_B_FEATURES)
 CATEGORICAL = ("surface", "tourney_level", "player_a_hand", "player_b_hand")
 NUMERIC = tuple(column for column in FEATURES if column not in CATEGORICAL)
 
+# Davis Cup (level D) is a team event with many incomplete rows, so it is out of scope.
+ALLOWED_VALUES = {
+    "surface": ("Hard", "Clay", "Grass"),
+    "tourney_level": ("G", "M", "A", "F"),
+    "best_of": (3, 5),
+    "player_a_hand": ("R", "L"),
+    "player_b_hand": ("R", "L"),
+}
+# Inclusive bounds, None means no upper bound.
+_PLAYER_RANGES = {"rank": (1, None), "rank_points": (1, None), "age": (14, 50), "ht": (150, 220)}
+RANGES = {
+    f"player_{side}_{name}": bounds for side in "ab" for name, bounds in _PLAYER_RANGES.items()
+}
+INTEGER = ("best_of", *(c for c in RANGES if not c.endswith("_age")))
+
 LABEL = "a_wins"
 # match_id identifies a row, tourney_date orders train before evaluation.
 COLUMNS = ("match_id", "tourney_date", *FEATURES, LABEL)
