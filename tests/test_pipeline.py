@@ -8,6 +8,7 @@ from mlflow import MlflowClient
 
 from ml import policy
 from ml.pipeline import main
+from ml.predict import main as predict
 from ml.registry import APPROVAL_TAG, CHAMPION
 from tests.synthetic import write_release
 
@@ -128,6 +129,22 @@ def test_rollback_refuses_unknown_or_unapproved_versions(registry, tmp_path):
     code, decision = run(tmp_path, "--rollback", "2")
     assert code == 1 and "approved" in decision["error"]
     assert champion(registry) == "1"
+
+
+def test_prediction_uses_the_champion_even_when_a_newer_version_exists(registry, tmp_path):
+    run(tmp_path, "--dataset-version", "v1")
+    run(tmp_path, "--dataset-version", "v2")
+    run(tmp_path, "--rollback", "1")
+    evaluation = tmp_path / "data" / "v2" / "evaluation.csv"
+    result = predict(["--input", str(evaluation), "--limit", "3"])
+    assert result["model_version"] == "1"
+    assert len(result["probability_player_a_wins"]) == 3
+    assert all(0 <= p <= 1 for p in result["probability_player_a_wins"])
+
+
+def test_prediction_without_a_champion_fails(registry, tmp_path):
+    with pytest.raises(SystemExit):
+        predict(["--input", str(tmp_path / "data" / "v1" / "evaluation.csv")])
 
 
 def test_rollback_requires_a_positive_version_number(registry):
