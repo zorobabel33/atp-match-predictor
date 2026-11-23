@@ -112,20 +112,85 @@ jobs:
           path: results/
           if-no-files-found: warn
 
-  # Hook for the deployment team: runs only when the champion alias moved.
-  # Replace the placeholder step with: refresh or redeploy the Azure Container App, wait for
-  # /ready, then call /model-info and /predict and fail unless model_version equals
-  # needs.train.outputs.champion_version.
+  # Runs only when the champion alias moved (bootstrap, promotion or rollback).
+  # The app resolves the alias once at startup, so a new revision is started, then the public URL
+  # must serve the expected version, checked with a live prediction.
   refresh-online-model:
     needs: train
     # always(): the alias can move before a later step of train fails.
     if: ${{ always() && needs.train.outputs.champion_changed == 'true' }}
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
+    permissions:
+      id-token: write
+      contents: read
+    # Same group as the deploy workflow, so two deployments never overlap.
+    concurrency:
+      group: atp-production-deploy
+      cancel-in-progress: false
+    env:
+      EXPECTED_VERSION: ${{ needs.train.outputs.champion_version }}
+      MODEL_NAME: ${{ vars.MODEL_NAME || 'atp-match-winner' }}
+      APP_URL: ${{ vars.APP_URL }}
+      RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
+      APP_NAME: ${{ vars.AZURE_CONTAINERAPP_NAME }}
+      REFRESH_ID: ${{ github.run_id }}-${{ github.run_attempt }}
     steps:
-      - name: Report the version the online service must load
-        env:
-          CHAMPION_VERSION: ${{ needs.train.outputs.champion_version }}
+      - name: Check the settings
         run: |
-          echo "Champion moved to version $CHAMPION_VERSION."
-          echo "Online refresh and live verification are not wired yet."
+          for name in EXPECTED_VERSION APP_URL RESOURCE_GROUP APP_NAME; do
+            if [ -z "${!name}" ]; then
+              echo "$name is empty." >&2
+              exit 1
+            fi
+          done
+
+      - name: Log in to Azure with OIDC
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Start a new revision so the app resolves champion again
+        run: |
+          az extension add --name containerapp --upgrade --only-show-errors
+          # Changing an environment variable creates a new revision. The previous healthy
+          # revision keeps serving until the new one is ready.
+          az containerapp update \
+            --name "$APP_NAME" \
+            --resource-group "$RESOURCE_GROUP" \
+            --set-env-vars "MODEL_NAME=$MODEL_NAME" "MODEL_REFRESH_ID=$REFRESH_ID" \
+            --output none
+
+      - name: Wait until the public URL serves the expected version
+        run: |
+          deadline=$((SECONDS + 600))
+          while [ "$SECONDS" -lt "$deadline" ]; do
+            version=$(curl -fsS --max-time 10 "$APP_URL/model-info" | jq -r '.model_version // empty' || true)
+            echo "Online model version: ${version:-unavailable} (expected $EXPECTED_VERSION)"
+            if [ "$version" = "$EXPECTED_VERSION" ]; then
+              exit 0
+            fi
+            sleep 15
+          done
+          echo "The public URL did not serve version $EXPECTED_VERSION in time." >&2
+          echo "Container Apps keeps the previous healthy revision. Run CT with operation=rollback." >&2
+          exit 1
+
+      - name: Check readiness and make a live prediction
+        run: |
+          curl -fsS --max-time 10 "$APP_URL/ready" > /dev/null
+          curl -fsS --max-time 10 "$APP_URL/model-info" \
+            | jq -e --arg name "$MODEL_NAME" --arg version "$EXPECTED_VERSION" \
+              '.model_name == $name and .model_version == $version' > /dev/null
+          body='{"surface": "Hard", "tourney_level": "G", "best_of": 5,
+            "player_a_rank": 1, "player_a_rank_points": 9500, "player_a_age": 23.5, "player_a_ht": 188, "player_a_hand": "R",
+            "player_b_rank": 45, "player_b_rank_points": 1200, "player_b_age": 29.1, "player_b_ht": 183, "player_b_hand": "L"}'
+          response=$(curl -fsS --max-time 20 -X POST "$APP_URL/predict" \
+            -H 'Content-Type: application/json' -d "$body")
+          echo "$response" | jq .
+          echo "$response" | jq -e --arg version "$EXPECTED_VERSION" \
+            '.model_version == $version
+             and (.probability_player_a_wins >= 0 and .probability_player_a_wins <= 1)
+             and (.predicted_winner == "player_a" or .predicted_winner == "player_b")' > /dev/null
