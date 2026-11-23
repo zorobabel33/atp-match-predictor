@@ -83,7 +83,8 @@ def run_release(client, name, release, workspace, result):
     champion_auc = None
     if champion:
         if int(champion.tags["training_last_date"]) >= evaluation["tourney_date"].min():
-            raise DataError("This evaluation window is older than the champion's training data")
+            # The data itself is valid: this is a release order error, not a validation failure.
+            raise ValueError("This evaluation window is older than the champion's training data")
         scores = evaluate(load_version(champion), evaluation)
         _log_scores("champion", scores)
         result["champion_metrics"] = scores
@@ -129,8 +130,7 @@ def run_release(client, name, release, workspace, result):
         "git_sha": result["git_sha"],
     })
     result["candidate_version"] = target
-    move_champion(client, name, champion_version, target)
-    result["champion_after"] = target
+    _move_champion(client, name, champion_version, target, result)
     result["decision"] = "promoted" if champion else "bootstrapped"
 
 
@@ -147,9 +147,24 @@ def roll_back(client, name, requested_version, result):
     if prior != requested_version:
         # Verify the stored artifact can still be loaded before exposing it to inference.
         load_version(version)
-        move_champion(client, name, prior, requested_version)
+        _move_champion(client, name, prior, requested_version, result)
     result["champion_after"] = requested_version
     result["decision"] = "rolled_back" if prior != requested_version else "rollback_unchanged"
+
+
+def _move_champion(client, name, expected, target, result):
+    """Move the alias. If the move fails, record where the alias really points."""
+    try:
+        move_champion(client, name, expected, target)
+    except (ValueError, MlflowException):
+        # The verification can fail after the alias already moved.
+        try:
+            current = get_champion(client, name)
+            result["champion_after"] = str(current.version) if current else None
+        except (ValueError, MlflowException):
+            pass
+        raise
+    result["champion_after"] = target
 
 
 def execute(args):
@@ -203,8 +218,9 @@ def execute(args):
             if result.get("reason"):
                 mlflow.set_tag("reason", result["reason"])
             _write_json(workspace / "decision.json", result)
-            shutil.copyfile(workspace / "decision.json", output / "decision.json")
+            # decision.json and the DVC pointer go to MLflow and to the CT run artifact.
             for path in workspace.iterdir():
+                shutil.copyfile(path, output / path.name)
                 mlflow.log_artifact(str(path))
             if failed or result.get("decision") == "bootstrap_rejected":
                 mlflow.end_run(status="FAILED")
