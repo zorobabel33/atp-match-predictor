@@ -44,7 +44,7 @@ feature/* --PR--> dev --PR--> staging --PR--> main
 | Workflow | File | Trigger | What it does |
 |---|---|---|---|
 | CI | `ci.yml` | Pull request to `dev`, `staging` or `main` | Required job `ci`: `ruff check`, `pytest`, Linux amd64 Docker build, start the image with an approved local test champion, wait for readiness, verify model metadata, a real prediction and invalid input. No DagsHub or Azure credentials. |
-| CT | `ct.yml` | Manual `workflow_dispatch` from `main` (Actions tab, available once the file is on `main`). Inputs: `operation` (`pipeline` or `rollback`), `dataset_version` (`v1`, `v2`), `rollback_version`. | Job `train`: `dvc pull` the version from Azure, validate it, score the champion, retrain when the policy says so, promote or keep the champion, check that the champion predicts, upload `decision.json`. Rollback moves `champion` to a previously approved version. Job `refresh-online-model` runs only when `champion` moved: placeholder to be replaced by the redeploy and live verification. Runs are serialized (`concurrency`). |
+| CT | `ct.yml` | Manual `workflow_dispatch` from `main` (Actions tab, available once the file is on `main`). Inputs: `operation` (`pipeline` or `rollback`), `dataset_version` (`v1`, `v2`), `rollback_version`. | Job `train`: `dvc pull` the version from Azure, validate it, score the champion, retrain when the policy says so, promote or keep the champion, check that the champion predicts, upload `decision.json`. Rollback moves `champion` to a previously approved version. Job `refresh-online-model` runs only when `champion` moved: it starts a new Container App revision, waits until the public URL serves the expected version, then checks it with a live prediction. Runs are serialized (`concurrency`). |
 | Staging | planned | Push to `staging` | Build the image, start it with a test model and run the smoke test in Actions. |
 | Deploy | planned | Push to `main` | Deploy the commit-tagged image to Azure Container Apps, wait for readiness, smoke test the public URL. |
 
@@ -82,8 +82,8 @@ Change them only through a pull request that updates every consumer.
 
 ### Model and registry
 
-- Registered model: `atp-match-winner`. A separate name, `atp-match-winner-dev`, is used for local
-  tests and controlled demonstrations.
+- Registered model: `atp-match-winner`. Separate names are used for local runs on the real data
+  (`atp-match-winner-dev`) and for controlled demonstrations (`atp-match-winner-staging`).
 - The production model is the version selected by the alias `champion`. Approved versions carry the
   tag `approval=approved`, plus `dataset_version` and `approval_roc_auc`.
 - Input: a pandas DataFrame with the feature columns above (everything except `match_id`,

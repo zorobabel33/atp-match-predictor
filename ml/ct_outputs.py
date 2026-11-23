@@ -12,8 +12,8 @@ SUMMARY_FIELDS = (
 
 
 def outputs(decision):
-    changed = (decision.get("decision") != "failed"
-               and decision.get("champion_before") != decision.get("champion_after"))
+    # Compare versions even for a failed run: the alias may have moved before the failure.
+    changed = decision.get("champion_before") != decision.get("champion_after")
     return {
         "champion_changed": str(changed).lower(),
         "champion_version": decision.get("champion_after") or "",
