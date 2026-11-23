@@ -36,6 +36,8 @@ concurrency:
 
 jobs:
   train:
+    # Only reviewed code on main may change the production model.
+    if: ${{ github.ref == 'refs/heads/main' }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
@@ -84,6 +86,12 @@ jobs:
           MLFLOW_TRACKING_PASSWORD: ${{ secrets.MLFLOW_TRACKING_PASSWORD }}
         run: python -m ml.predict --input "data/$DATASET_VERSION/evaluation.csv" --limit 3
 
+      - name: Require a version for rollback
+        if: ${{ inputs.operation == 'rollback' && inputs.rollback_version == '' }}
+        run: |
+          echo "Set rollback_version to a previously approved model version." >&2
+          exit 1
+
       - name: Restore a previously approved version
         if: ${{ inputs.operation == 'rollback' }}
         env:
@@ -110,7 +118,8 @@ jobs:
   # needs.train.outputs.champion_version.
   refresh-online-model:
     needs: train
-    if: ${{ needs.train.outputs.champion_changed == 'true' }}
+    # always(): the alias can move before a later step of train fails.
+    if: ${{ always() && needs.train.outputs.champion_changed == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:

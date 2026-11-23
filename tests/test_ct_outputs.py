@@ -16,6 +16,9 @@ from ml.ct_outputs import main, outputs, summary
         ({"decision": "retain_no_retraining", "champion_before": "1", "champion_after": "1"},
          "false", "1"),
         ({"decision": "failed", "champion_before": None, "champion_after": None}, "false", ""),
+        ({"decision": "failed", "champion_before": "1", "champion_after": "1"}, "false", "1"),
+        # The alias moved, then a later check failed: production must still be refreshed.
+        ({"decision": "failed", "champion_before": "1", "champion_after": "2"}, "true", "2"),
         ({}, "false", ""),
     ],
 )
