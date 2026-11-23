@@ -11,7 +11,7 @@ jobs:
   # Required status check on dev, staging and main. Keep the job name stable.
   ci:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     steps:
       - name: Check out the code
         uses: actions/checkout@v6
@@ -36,3 +36,35 @@ jobs:
       - name: Run tests
         # No DagsHub or Azure access here: tests use fixtures and a temporary local registry.
         run: pytest
+
+      - name: Build the production image
+        run: docker build --platform linux/amd64 --tag "atp-app:$GITHUB_SHA" .
+
+      - name: Create the local test registry
+        run: python -m tests.make_test_registry --output-dir "$RUNNER_TEMP/atp-registry"
+
+      - name: Start the container with the approved test model
+        # Test a non-default PORT too. No GitHub secrets, DagsHub or Azure access is needed.
+        run: |
+          docker run --detach --name atp-ci \
+            --publish 127.0.0.1:8000:8080 \
+            --mount "type=bind,source=$RUNNER_TEMP/atp-registry,target=/registry" \
+            --env MLFLOW_TRACKING_URI=sqlite:////registry/mlflow.db \
+            --env MODEL_NAME=atp-match-winner-ci \
+            --env PORT=8080 \
+            "atp-app:$GITHUB_SHA"
+
+      - name: Smoke test the running image
+        run: |
+          python -m scripts.smoke_test \
+            --url http://127.0.0.1:8000 \
+            --expected-model-info "$RUNNER_TEMP/atp-registry/expected-model.json" \
+            --timeout 90
+
+      - name: Show container logs on failure
+        if: failure()
+        run: docker logs atp-ci
+
+      - name: Remove the test container
+        if: always()
+        run: docker rm --force atp-ci > /dev/null 2>&1 || true
