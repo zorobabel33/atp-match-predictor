@@ -289,3 +289,42 @@ python -m ml.pipeline --dataset-version v1   # writes results/decision.json
 python -m ml.pipeline --rollback 1           # move champion back to an approved version
 python -m ml.compare_models                  # model selection on training seasons only
 ```
+
+## Use of AI tools
+
+We used an AI coding assistant (Claude Code) as a productivity tool. Each member remains the
+author of their part: we made the design decisions, reviewed and tested everything, and can
+explain every line. This section is written from a log kept during the project.
+
+### Enock: data, training pipeline, continuous training, team handoff
+
+What I designed and decided:
+
+- The problem framing and the leakage rules: pre-match features only, a seeded random player
+  order instead of the `winner_*` / `loser_*` columns, a chronological v1 / v2 split.
+- The data source and preparation: when the original `tennis_atp` repository disappeared, the
+  switch to a pinned archive under the same license; the filters (Davis Cup, walkovers, missing
+  values); DVC on the course Azure container, with tags `data-v1` and `data-v2`.
+- The model and the quality gates, calibrated on the 2021 validation season before any
+  evaluation on 2022 or 2023. When the real v2 candidate did not improve (-0.0006), I kept the
+  gates and demonstrated promotion and rollback on a separate staging model instead.
+- The repository organisation: branch protections, stacked pull requests, merge-commit policy,
+  interface contracts, the issues and briefs that let Paul and Adria work in parallel, and the
+  reviews of their pull requests.
+
+How the assistant made me faster:
+
+- It drafted code, tests and documentation from my specifications, following the patterns of
+  the course labs, so I could spend my time on decisions and verification.
+- It ran repetitive checks and commands for me (ruff, pytest, GitHub, DagsHub and Azure queries)
+  and ran a code review before approval, which found three defects that were then fixed.
+
+How I kept control: I approved every file change, commit, push and pull request, and verified
+the results myself (CI, `dvc pull` from a fresh clone, MLflow runs on DagsHub).
+
+My commits made before 2026-11-23 carry a `Co-Authored-By: Claude` trailer that the tool added
+automatically. It was turned off afterwards; the trailer reflects the use described above.
+
+### Paul and Adria
+
+To be completed by each of them for their part.
