@@ -19,6 +19,7 @@ Details of each dataset version are in `ml/README_data.md`.
 
 ```
 .github/workflows/   CI (pull requests), CT, staging and deployment workflows
+data/                DVC pointers for the prepared releases (v1.dvc, v2.dvc), data on Azure Blob
 ml/                  data contract, data preparation, training pipeline, promotion policy
 tests/               unit and pipeline tests, run in CI without DagsHub or Azure
 app/                 web app and inference service (Dockerfile at the repository root)
@@ -81,8 +82,8 @@ Change them only through a pull request that updates every consumer.
 
 ### Model and registry
 
-- Registered model: `atp-match-winner`. A separate name, `atp-match-winner-dev`, is used for local
-  tests and controlled demonstrations.
+- Registered model: `atp-match-winner`. Separate names are used for local runs on the real data
+  (`atp-match-winner-dev`) and for controlled demonstrations (`atp-match-winner-staging`).
 - The production model is the version selected by the alias `champion`. Approved versions carry the
   tag `approval=approved`, plus `dataset_version` and `approval_roc_auc`.
 - Input: a pandas DataFrame with the feature columns above (everything except `match_id`,
