@@ -82,8 +82,8 @@ Change them only through a pull request that updates every consumer.
 
 ### Model and registry
 
-- Registered model: `atp-match-winner`. A separate name, `atp-match-winner-dev`, is used for local
-  tests and controlled demonstrations.
+- Registered model: `atp-match-winner`. Separate names are used for local runs on the real data
+  (`atp-match-winner-dev`) and for controlled demonstrations (`atp-match-winner-staging`).
 - The production model is the version selected by the alias `champion`. Approved versions carry the
   tag `approval=approved`, plus `dataset_version` and `approval_roc_auc`.
 - Input: a pandas DataFrame with the feature columns above (everything except `match_id`,
