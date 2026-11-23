@@ -119,6 +119,82 @@ demonstrations on synthetic releases, see `ml/README_experiments.md`).
 
 ## Local development
 
+### Web app
+
+The Courtside interface compares two ATP player profiles, lets users edit all 13 input features,
+and shows the predicted winner, each player's probability and the loaded model version. It is
+served by FastAPI at `/`, with no JavaScript build step or external request from the browser.
+
+```bash
+python -m venv .venv
+source .venv/bin/activate
+python -m pip install -r requirements-dev.txt
+# Export MLFLOW_TRACKING_URI, MLFLOW_TRACKING_USERNAME and MLFLOW_TRACKING_PASSWORD locally.
+# For the real-data development model, also export MODEL_NAME=atp-match-winner-dev.
+python -m app.main  # listens on PORT, default 8000
+```
+
+Open `http://localhost:8000`. The page and player catalogue remain accessible if the model cannot
+load; `/ready`, `/model-info` and valid prediction requests return 503. Startup resolves the
+approved `champion` once, loads that immutable version and runs a probe before becoming ready.
+Restart the service to pick up a changed alias. `/health` remains 200 while loading or unavailable.
+`/contract` provides the shared field names, categories and bounds to the form.
+
+For an entirely offline UI preview after installing dependencies:
+
+```bash
+python -m scripts.create_demo_model
+export MLFLOW_TRACKING_URI="sqlite:///$(pwd)/results/demo/mlflow.db"
+export MODEL_NAME=atp-match-winner-ui-demo
+python -m app.main
+```
+
+This creates a local approved model trained on synthetic fixtures. The UI identifies it as a
+demonstration, and its probabilities are illustrative. This is an explicit development tool,
+never a fallback for an unavailable production model. No DagsHub or Azure credentials are needed.
+The registry and artifacts live in the ignored `results/demo/` directory.
+
+Example prediction (names and player IDs are not sent to the model):
+
+```bash
+curl http://localhost:8000/predict \
+  -H 'Content-Type: application/json' \
+  -d '{"surface":"Hard","tourney_level":"M","best_of":3,
+       "player_a_rank":2,"player_a_rank_points":9960,"player_a_age":23.1,
+       "player_a_ht":183,"player_a_hand":"R",
+       "player_b_rank":7,"player_b_rank_points":3760,"player_b_age":39,
+       "player_b_ht":188,"player_b_hand":"R"}'
+```
+
+Response shape (illustrative values; the probability depends on the loaded model):
+
+```json
+{"probability_player_a_wins": 0.62, "predicted_winner": "player_a", "model_version": "1"}
+```
+
+Invalid input returns 422: missing or extra fields, wrong types, unsupported categories,
+out-of-range or non-finite numbers. Tests cover valid predictions, invalid requests, startup
+readiness, a newer registered version, a moved alias and unavailable or unapproved champions,
+using only synthetic data and a temporary SQLite registry.
+
+### Player catalogue
+
+`app/static/players.json` contains 200 complete ranked player profiles. It is a dated snapshot
+(2026-06-08), not live rankings. Age is calculated at the ranking date. Unknown height, birth date
+or hand, and values outside `ml.contract`, are excluded without imputation. Fields can be edited
+in the UI; a free profile is also available. Selecting the same named player on both sides is
+rejected by the interface.
+
+Regenerate it with `python -m scripts.build_players`. The script downloads `atp_players.csv` and
+`atp_rankings_current.csv` from the same pinned archive commit as `ml.prepare_data`, caches the
+raw files in ignored `raw/players/`, joins by player ID, selects the newest ranking date and
+writes the first 200 complete profiles. `--raw-dir`, `--output` and `--limit` are configurable.
+Network is used only during explicit generation, never at app startup, in the UI or in CI tests.
+Source commit and SHA-256 hashes are recorded inside the JSON. The derived catalogue shares
+the source's CC BY-NC-SA 4.0 license; attribution and snapshot date are visible in the UI.
+
+### Training and checks
+
 ```bash
 python -m venv .venv
 source .venv/bin/activate        # Windows: .venv\Scripts\activate
