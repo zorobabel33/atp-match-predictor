@@ -43,7 +43,7 @@ feature/* --PR--> dev --PR--> staging --PR--> main
 
 | Workflow | File | Trigger | What it does |
 |---|---|---|---|
-| CI | `ci.yml` | Pull request to `dev`, `staging` or `main` | `ruff check` and `pytest` (job `ci`, required check). Docker build and container smoke test to be added. |
+| CI | `ci.yml` | Pull request to `dev`, `staging` or `main` | Required job `ci`: `ruff check`, `pytest`, Linux amd64 Docker build, start the image with an approved local test champion, wait for readiness, verify model metadata, a real prediction and invalid input. No DagsHub or Azure credentials. |
 | CT | `ct.yml` | Manual `workflow_dispatch` from `main` (Actions tab, available once the file is on `main`). Inputs: `operation` (`pipeline` or `rollback`), `dataset_version` (`v1`, `v2`), `rollback_version`. | Job `train`: `dvc pull` the version from Azure, validate it, score the champion, retrain when the policy says so, promote or keep the champion, check that the champion predicts, upload `decision.json`. Rollback moves `champion` to a previously approved version. Job `refresh-online-model` runs only when `champion` moved: it starts a new Container App revision, waits until the public URL serves the expected version, then checks it with a live prediction. Runs are serialized (`concurrency`). |
 | Staging | planned | Push to `staging` | Build the image, start it with a test model and run the smoke test in Actions. |
 | Deploy | planned | Push to `main` | Deploy the commit-tagged image to Azure Container Apps, wait for readiness, smoke test the public URL. |
@@ -118,6 +118,159 @@ Registered model names: `atp-match-winner` (production, used only by the CT work
 demonstrations on synthetic releases, see `ml/README_experiments.md`).
 
 ## Local development
+
+### Docker
+
+Build the production image from the repository root:
+
+```bash
+docker build -t atp-app .
+```
+
+The image uses Python 3.12 slim, installs only `app/requirements.txt`, and runs as UID/GID 10001.
+MLflow and scikit-learn match training. SQLAlchemy is pinned to the training version too:
+MLflow 2.22.5's SQLite store imports a pool class removed in SQLAlchemy 2.1.
+The allowlist in `.dockerignore` sends only the app, static player catalogue and four inference
+modules to the build. Training datasets, tests, notebooks, DVC, local registries, development
+files and `.env` files are excluded. The model is downloaded at startup, never during the build.
+
+Put the real registry settings in a local, ignored `.env` (`MLFLOW_TRACKING_URI`,
+`MLFLOW_TRACKING_USERNAME`, `MLFLOW_TRACKING_PASSWORD`; optionally `MODEL_NAME`). Then run:
+
+```bash
+docker run --rm --name atp-app --publish 127.0.0.1:8000:8000 --env-file .env atp-app
+```
+
+Open `http://localhost:8000`. To test the shared real-data development model instead of the
+production default, add `--env MODEL_NAME=atp-match-winner-dev` before the image name.
+For deployment, inject these settings using the hosting platform's runtime configuration.
+Do not pass credentials as Docker build arguments. `PORT` defaults to 8000; if changed, publish
+the matching container port. The Docker healthcheck uses `/ready` and the configured `PORT`.
+A failed champion load leaves the process alive but not ready, with no demo fallback. Fix the
+runtime settings or approved registry version and restart the container.
+
+On Apple Silicon the default local build is Linux arm64. Build with `--platform linux/amd64`
+when validating the same architecture as CI and the intended deployment image. Images in CI
+are tagged with the Git commit SHA; CI does not push an image or deploy a service.
+
+### Reproduce the Docker CI check
+
+After installing `requirements-dev.txt`, run the same checks locally (port 18000 keeps the UI
+development server on 8000 available):
+
+```bash
+ruff check .
+pytest
+docker build --platform linux/amd64 -t atp-app:ci .
+# Use a new, empty output directory for each test registry.
+python -m tests.make_test_registry --output-dir results/container-registry
+docker run --detach --name atp-ci --publish 127.0.0.1:18000:8080 \
+  --mount "type=bind,source=$(pwd)/results/container-registry,target=/registry" \
+  --env MLFLOW_TRACKING_URI=sqlite:////registry/mlflow.db \
+  --env MODEL_NAME=atp-match-winner-ci --env PORT=8080 atp-app:ci
+python -m scripts.smoke_test --url http://127.0.0.1:18000 \
+  --expected-model-info results/container-registry/expected-model.json --timeout 90
+docker logs atp-ci
+docker rm --force atp-ci
+```
+
+The fixture contains two approved versions and deliberately keeps `champion` on version 1.
+Artifact references use `/registry/model`, matching the container mount rather than the host's
+directory. MLflow 2 writes a `registered_model_meta` file when loading a local model, so the
+disposable synthetic model directory is writable by the container; the other fixture files
+remain readable. This fixture is never included in the production image.
+The smoke command waits for readiness, checks health and the HTML page,
+compares all four model metadata fields to independently generated expectations, submits the
+13-feature prediction and verifies its probability, winner and version. A rank of zero must
+return 422. Unexpected responses or a readiness timeout return a nonzero exit code.
+
+The Docker steps are in the existing required `ci` job, so a build, startup or prediction failure
+fails the same branch-protection check. The workflow prints container logs on failure and removes
+the test container even if a step fails. Dependencies and the base image are downloaded during
+setup/build; fixture generation and application checks use no external MLflow or Azure service.
+
+Local verification on 2026-11-23: Linux amd64 build succeeded, Docker reported the image as
+1.05 GB, the container became healthy on `PORT=8080`, and the smoke test verified champion 1
+while approved version 2 existed. A disposable container with a deliberately broken `/predict`
+still passed readiness and model-info, then returned HTTP 500 and made the smoke command exit 1.
+`ruff check .` and all 138 tests passed. Shared DagsHub serving and a GitHub-hosted CI run still
+need validation with the team's runtime settings and a pull request, respectively.
+
+### Web app
+
+The Courtside interface compares two ATP player profiles, lets users edit all 13 input features,
+and shows the predicted winner, each player's probability and the loaded model version. It is
+served by FastAPI at `/`, with no JavaScript build step or external request from the browser.
+
+```bash
+python -m venv .venv
+source .venv/bin/activate
+python -m pip install -r requirements-dev.txt
+# Export MLFLOW_TRACKING_URI, MLFLOW_TRACKING_USERNAME and MLFLOW_TRACKING_PASSWORD locally.
+# For the real-data development model, also export MODEL_NAME=atp-match-winner-dev.
+python -m app.main  # listens on PORT, default 8000
+```
+
+Open `http://localhost:8000`. The page and player catalogue remain accessible if the model cannot
+load; `/ready`, `/model-info` and valid prediction requests return 503. Startup resolves the
+approved `champion` once, loads that immutable version and runs a probe before becoming ready.
+Restart the service to pick up a changed alias. `/health` remains 200 while loading or unavailable.
+`/contract` provides the shared field names, categories and bounds to the form.
+
+For an entirely offline UI preview after installing dependencies:
+
+```bash
+python -m scripts.create_demo_model
+export MLFLOW_TRACKING_URI="sqlite:///$(pwd)/results/demo/mlflow.db"
+export MODEL_NAME=atp-match-winner-ui-demo
+python -m app.main
+```
+
+This creates a local approved model trained on synthetic fixtures. The UI identifies it as a
+demonstration, and its probabilities are illustrative. This is an explicit development tool,
+never a fallback for an unavailable production model. No DagsHub or Azure credentials are needed.
+The registry and artifacts live in the ignored `results/demo/` directory.
+
+Example prediction (names and player IDs are not sent to the model):
+
+```bash
+curl http://localhost:8000/predict \
+  -H 'Content-Type: application/json' \
+  -d '{"surface":"Hard","tourney_level":"M","best_of":3,
+       "player_a_rank":2,"player_a_rank_points":9960,"player_a_age":23.1,
+       "player_a_ht":183,"player_a_hand":"R",
+       "player_b_rank":7,"player_b_rank_points":3760,"player_b_age":39,
+       "player_b_ht":188,"player_b_hand":"R"}'
+```
+
+Response shape (illustrative values; the probability depends on the loaded model):
+
+```json
+{"probability_player_a_wins": 0.62, "predicted_winner": "player_a", "model_version": "1"}
+```
+
+Invalid input returns 422: missing or extra fields, wrong types, unsupported categories,
+out-of-range or non-finite numbers. Tests cover valid predictions, invalid requests, startup
+readiness, a newer registered version, a moved alias and unavailable or unapproved champions,
+using only synthetic data and a temporary SQLite registry.
+
+### Player catalogue
+
+`app/static/players.json` contains 200 complete ranked player profiles. It is a dated snapshot
+(2026-06-08), not live rankings. Age is calculated at the ranking date. Unknown height, birth date
+or hand, and values outside `ml.contract`, are excluded without imputation. Fields can be edited
+in the UI; a free profile is also available. Selecting the same named player on both sides is
+rejected by the interface.
+
+Regenerate it with `python -m scripts.build_players`. The script downloads `atp_players.csv` and
+`atp_rankings_current.csv` from the same pinned archive commit as `ml.prepare_data`, caches the
+raw files in ignored `raw/players/`, joins by player ID, selects the newest ranking date and
+writes the first 200 complete profiles. `--raw-dir`, `--output` and `--limit` are configurable.
+Network is used only during explicit generation, never at app startup, in the UI or in CI tests.
+Source commit and SHA-256 hashes are recorded inside the JSON. The derived catalogue shares
+the source's CC BY-NC-SA 4.0 license; attribution and snapshot date are visible in the UI.
+
+### Training and checks
 
 ```bash
 python -m venv .venv
