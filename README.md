@@ -44,7 +44,7 @@ feature/* --PR--> dev --PR--> staging --PR--> main
 | Workflow | File | Trigger | What it does |
 |---|---|---|---|
 | CI | `ci.yml` | Pull request to `dev`, `staging` or `main` | `ruff check` and `pytest` (job `ci`, required check). Docker build and container smoke test to be added. |
-| CT | `ct.yml` (planned) | `workflow_dispatch` on `main` | Fetch and validate a DVC dataset version, evaluate the champion, retrain, apply the promotion rule, move `champion`, or roll back. |
+| CT | `ct.yml` | Manual `workflow_dispatch` from `main` (Actions tab, available once the file is on `main`). Inputs: `operation` (`pipeline` or `rollback`), `dataset_version` (`v1`, `v2`), `rollback_version`. | Job `train`: `dvc pull` the version from Azure, validate it, score the champion, retrain when the policy says so, promote or keep the champion, check that the champion predicts, upload `decision.json`. Rollback moves `champion` to a previously approved version. Job `refresh-online-model` runs only when `champion` moved: placeholder to be replaced by the redeploy and live verification. Runs are serialized (`concurrency`). |
 | Staging | planned | Push to `staging` | Build the image, start it with a test model and run the smoke test in Actions. |
 | Deploy | planned | Push to `main` | Deploy the commit-tagged image to Azure Container Apps, wait for readiness, smoke test the public URL. |
 
