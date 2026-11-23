@@ -6,7 +6,7 @@ import mlflow
 import pytest
 from mlflow import MlflowClient
 
-from ml import policy
+from ml import pipeline, policy
 from ml.pipeline import main
 from ml.registry import APPROVAL_TAG, CHAMPION
 from tests.synthetic import write_release
@@ -105,6 +105,23 @@ def test_older_window_than_the_champion_is_refused(registry, tmp_path):
     run(tmp_path, "--dataset-version", "v2")
     code, decision = run(tmp_path, "--dataset-version", "v1")
     assert code == 1 and "older" in decision["error"]
+    assert decision["validation"] == "passed"
+    assert champion(registry) == "2"
+
+
+def test_failed_check_after_the_alias_moved_records_the_real_champion(
+        registry, tmp_path, monkeypatch):
+    run(tmp_path, "--dataset-version", "v1")
+
+    def move_then_fail(client, name, expected, target):
+        client.set_registered_model_alias(name, CHAMPION, target)
+        raise ValueError("The production selection could not be verified")
+
+    monkeypatch.setattr(pipeline, "move_champion", move_then_fail)
+    code, decision = run(tmp_path, "--dataset-version", "v2")
+    assert code == 1 and decision["decision"] == "failed"
+    # decision.json must not claim the old champion is still in production.
+    assert decision["champion_before"] == "1" and decision["champion_after"] == "2"
     assert champion(registry) == "2"
 
 
