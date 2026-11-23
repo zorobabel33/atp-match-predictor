@@ -44,7 +44,7 @@ feature/* --PR--> dev --PR--> staging --PR--> main
 | Workflow | File | Trigger | What it does |
 |---|---|---|---|
 | CI | `ci.yml` | Pull request to `dev`, `staging` or `main` | `ruff check` and `pytest` (job `ci`, required check). Docker build and container smoke test to be added. |
-| CT | `ct.yml` (planned) | `workflow_dispatch` on `main` | Fetch and validate a DVC dataset version, evaluate the champion, retrain, apply the promotion rule, move `champion`, or roll back. |
+| CT | `ct.yml` | Manual `workflow_dispatch` from `main` (Actions tab, available once the file is on `main`). Inputs: `operation` (`pipeline` or `rollback`), `dataset_version` (`v1`, `v2`), `rollback_version`. | Job `train`: `dvc pull` the version from Azure, validate it, score the champion, retrain when the policy says so, promote or keep the champion, check that the champion predicts, upload `decision.json`. Rollback moves `champion` to a previously approved version. Job `refresh-online-model` runs only when `champion` moved: placeholder to be replaced by the redeploy and live verification. Runs are serialized (`concurrency`). |
 | Staging | planned | Push to `staging` | Build the image, start it with a test model and run the smoke test in Actions. |
 | Deploy | planned | Push to `main` | Deploy the commit-tagged image to Azure Container Apps, wait for readiness, smoke test the public URL. |
 
@@ -111,6 +111,11 @@ Settings come from the environment, never from the code or the image.
 | `MLFLOW_TRACKING_PASSWORD` | GitHub secret | CT, app, deploy |
 | `AZURE_SAS_TOKEN` | GitHub secret | CT (DVC pull from Azure Blob) |
 | `MODEL_NAME` | environment, default `atp-match-winner` | CT, app |
+| `MLFLOW_EXPERIMENT_NAME` | environment, default `atp-match-winner` | CT |
+
+Registered model names: `atp-match-winner` (production, used only by the CT workflow),
+`atp-match-winner-dev` (local runs on the real data), `atp-match-winner-staging` (controlled
+demonstrations on synthetic releases, see `ml/README_experiments.md`).
 
 ## Local development
 
@@ -120,4 +125,14 @@ source .venv/bin/activate        # Windows: .venv\Scripts\activate
 python -m pip install -r requirements-dev.txt
 ruff check .
 pytest
+```
+
+Training pipeline against the shared registry (put the MLflow variables in a local `.env`, never
+committed, and the SAS token in `.dvc/config.local`):
+
+```bash
+export MODEL_NAME=atp-match-winner-dev MLFLOW_EXPERIMENT_NAME=atp-match-winner-dev
+python -m ml.pipeline --dataset-version v1   # writes results/decision.json
+python -m ml.pipeline --rollback 1           # move champion back to an approved version
+python -m ml.compare_models                  # model selection on training seasons only
 ```
