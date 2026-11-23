@@ -293,7 +293,7 @@ python -m ml.compare_models                  # model selection on training seaso
 ## Use of AI tools
 
 We used an AI coding assistant (Claude Code) to work faster. Each member is the author of their
-part: we made the design decisions, reviewed and tested the code, and can explain every line.
+part: we made the design decisions and reviewed and tested the code.
 
 ### Enock: data, training pipeline, continuous training, team handoff
 
