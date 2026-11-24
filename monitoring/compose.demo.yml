@@ -1,0 +1,18 @@
+# Synthetic traffic, models and email stay local. This never connects to DagsHub or Azure.
+services:
+  api:
+    environment:
+      MLFLOW_TRACKING_URI: sqlite:////registry/mlflow.db
+      MLFLOW_TRACKING_USERNAME: ''
+      MLFLOW_TRACKING_PASSWORD: ''
+      MODEL_NAME: ${DEMO_MODEL_NAME:-atp-match-winner-monitoring-demo}
+    volumes:
+      - ./results/monitoring-demo:/registry
+  grafana:
+    environment:
+      GF_SMTP_HOST: mailpit:1025
+      GF_SMTP_USER: ''
+      GF_SMTP_PASSWORD: ''
+      GF_SMTP_FROM_ADDRESS: alerts@courtside.test
+      GF_SMTP_STARTTLS_POLICY: NoStartTLS
+      ALERT_EMAIL_TO: paul@courtside.test

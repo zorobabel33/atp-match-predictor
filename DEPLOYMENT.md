@@ -41,8 +41,8 @@ The DagsHub password is also stored as a Container App secret and exposed to the
 | Event | Workflow | Job | What happens |
 |---|---|---|---|
 | Pull request to `dev`, `staging` or `main` | `ci.yml` | `ci` | Lint, tests, Docker build and container smoke test |
-| Push (merge) to `staging` | staging workflow | staging | Build the image tagged with the commit SHA, start it in Actions with the approved DagsHub staging champion, wait for `/ready`, run the smoke test |
-| Push (merge) to `main` | deploy workflow | build, deploy | Build or select the verified image for the commit, deploy it to Azure Container Apps, wait for `/ready`, smoke test the public URL |
+| Push (merge) to `staging` | `staging.yml` | `staging` | Build the image tagged with the commit SHA, start it in Actions with the approved DagsHub staging champion, wait for `/ready`, run the smoke test |
+| Push (merge) to `main` | `deploy.yml` | `build`, `deploy` | Build and smoke test the image, push it to GHCR with the commit SHA tag, deploy it to Azure Container Apps, wait for the new revision to be healthy, smoke test the public URL |
 | Manual run from `main` | `ct.yml` | `train` | Run the training pipeline or a rollback |
 | Manual run from `main`, when `champion` moved | `ct.yml` | `refresh-online-model` | Start a new revision, wait for `/ready`, check the loaded version with a live prediction |
 
@@ -73,8 +73,13 @@ that a Docker `HEALTHCHECK` configures Azure probes.
 Startup allows up to five minutes to load and test the champion. Readiness must use HTTP
 `/ready`, which stays unavailable until a real prediction succeeds; a TCP port check alone
 does not establish that the model is ready. Saving probes creates a new revision. Repeat the
-public smoke test after it becomes healthy. These are required settings to verify in the
-resource, rather than a claim that the initial quickstart configuration already included them.
+public smoke test after it becomes healthy.
+
+These probes were configured on 2026-11-24 and confirmed in the Container App JSON (HTTP probes on
+port 8000). The next Deploy run
+([45424276715](https://github.com/zorobabel33/atp-match-predictor/actions/runs/45424276715)) saw
+the revision go from `health=None` to `Healthy`, then passed the public smoke test with
+`atp-match-winner` version 1.
 
 If `azure/login` fails with `AADSTS700213`, compare the assertion subject in the failed job
 with the managed identity's federated credentials. This repository presents subjects that

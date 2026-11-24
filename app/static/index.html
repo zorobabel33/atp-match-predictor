@@ -183,52 +183,36 @@
                 <label
                   >Classement ATP<span class="input-unit"
                     ><span class="rank-prefix">#</span
-                    ><input
+                    ><output
                       name="player_a_rank"
-                      type="number"
-                      required
-                      aria-label="Classement ATP du joueur A" /></span></label
+                      aria-label="Classement ATP du joueur A">—</output></span></label
                 ><label
-                  >Points ATP<input
+                  >Points ATP<output
                     name="player_a_rank_points"
-                    type="number"
-                    required
-                    aria-label="Points ATP du joueur A"
-                /></label>
+                    aria-label="Points ATP du joueur A">—</output></label>
               </div>
               <div class="stats-secondary">
                 <label
                   >Âge<span class="input-unit"
-                    ><input
+                    ><output
                       name="player_a_age"
-                      type="number"
-                      step="0.1"
-                      required
-                      aria-label="Âge du joueur A"
-                    /><span>ans</span></span
+                      aria-label="Âge du joueur A">—</output><span>ans</span></span
                   ></label
                 ><label
                   >Taille<span class="input-unit"
-                    ><input
+                    ><output
                       name="player_a_ht"
-                      type="number"
-                      required
-                      aria-label="Taille du joueur A"
-                    /><span>cm</span></span
+                      aria-label="Taille du joueur A">—</output><span>cm</span></span
                   ></label
                 ><label
-                  >Main<select
+                  >Main<output
                     name="player_a_hand"
-                    aria-label="Main du joueur A"
-                  ></select
+                    aria-label="Main du joueur A">—</output
                 ></label>
               </div>
               <div class="player-bottom">
                 <span class="profile-note" id="profile-a"
-                  >Profil du snapshot</span
-                ><button type="button" class="text-button" data-custom="a">
-                  Profil libre
-                </button>
+                  >Profil du snapshot</span>
               </div>
             </section>
 
@@ -301,52 +285,36 @@
                 <label
                   >Classement ATP<span class="input-unit"
                     ><span class="rank-prefix">#</span
-                    ><input
+                    ><output
                       name="player_b_rank"
-                      type="number"
-                      required
-                      aria-label="Classement ATP du joueur B" /></span></label
+                      aria-label="Classement ATP du joueur B">—</output></span></label
                 ><label
-                  >Points ATP<input
+                  >Points ATP<output
                     name="player_b_rank_points"
-                    type="number"
-                    required
-                    aria-label="Points ATP du joueur B"
-                /></label>
+                    aria-label="Points ATP du joueur B">—</output></label>
               </div>
               <div class="stats-secondary">
                 <label
                   >Âge<span class="input-unit"
-                    ><input
+                    ><output
                       name="player_b_age"
-                      type="number"
-                      step="0.1"
-                      required
-                      aria-label="Âge du joueur B"
-                    /><span>ans</span></span
+                      aria-label="Âge du joueur B">—</output><span>ans</span></span
                   ></label
                 ><label
                   >Taille<span class="input-unit"
-                    ><input
+                    ><output
                       name="player_b_ht"
-                      type="number"
-                      required
-                      aria-label="Taille du joueur B"
-                    /><span>cm</span></span
+                      aria-label="Taille du joueur B">—</output><span>cm</span></span
                   ></label
                 ><label
-                  >Main<select
+                  >Main<output
                     name="player_b_hand"
-                    aria-label="Main du joueur B"
-                  ></select
+                    aria-label="Main du joueur B">—</output
                 ></label>
               </div>
               <div class="player-bottom">
                 <span class="profile-note" id="profile-b"
-                  >Profil du snapshot</span
-                ><button type="button" class="text-button" data-custom="b">
-                  Profil libre
-                </button>
+                  >Profil du snapshot</span>
               </div>
             </section>
           </div>
@@ -494,8 +462,8 @@
       </p>
       <p>
         Le nom sert à sélectionner un profil. Il n’est jamais transmis au
-        modèle. Les statistiques restent modifiables pour explorer d’autres
-        duels.
+        modèle. Chaque joueur conserve les statistiques de son profil dans le
+        catalogue. Choisissez les conditions du match pour composer votre duel.
       </p>
       <div class="method-detail">
         <strong id="method-model">Modèle en cours de connexion</strong>
