@@ -1,0 +1,36 @@
+# Only serving files enter the build context. This also excludes untracked secrets and datasets.
+**
+!Dockerfile
+!.dockerignore
+!app/
+!app/__init__.py
+!app/main.py
+!app/requirements.txt
+!app/static/
+!app/static/**
+!ml/
+!ml/__init__.py
+!ml/contract.py
+!ml/model.py
+!ml/registry.py
+
+# Never include development artifacts, even if created inside an allowed static directory.
+**/.git
+**/.venv
+**/.dvc
+**/__pycache__
+**/*.pyc
+**/.env
+**/.env.*
+**/*.db
+**/*.db-*
+**/*.sqlite*
+**/*.pkl
+**/*.pickle
+**/*.joblib
+**/*.csv
+**/*.parquet
+**/*.md
+**/*.pdf
+**/*.pem
+**/*.key

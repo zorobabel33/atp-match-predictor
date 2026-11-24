@@ -1,0 +1,203 @@
+name: Deploy
+
+# After a merge into main: build the image for the commit, verify it, publish it with the commit
+# SHA as its tag, deploy it to Azure Container Apps, then smoke test the public URL.
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      packages: write
+    env:
+      IMAGE: ghcr.io/${{ github.repository }}
+    steps:
+      - name: Check out the code
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: |
+            requirements*.txt
+            app/requirements.txt
+
+      - name: Install dependencies
+        run: python -m pip install -r requirements-dev.txt
+
+      - name: Build the image
+        run: |
+          docker build --platform linux/amd64 \
+            --label "org.opencontainers.image.source=https://github.com/$GITHUB_REPOSITORY" \
+            --tag "$IMAGE:$GITHUB_SHA" .
+
+      - name: Create the local test registry
+        run: python -m tests.make_test_registry --output-dir "$RUNNER_TEMP/atp-registry"
+
+      - name: Start the image with the approved test model
+        run: |
+          docker run --detach --name atp-build \
+            --publish 127.0.0.1:8000:8080 \
+            --mount "type=bind,source=$RUNNER_TEMP/atp-registry,target=/registry" \
+            --env MLFLOW_TRACKING_URI=sqlite:////registry/mlflow.db \
+            --env MODEL_NAME=atp-match-winner-ci \
+            --env PORT=8080 \
+            "$IMAGE:$GITHUB_SHA"
+
+      - name: Smoke test the image before publishing it
+        run: |
+          python -m scripts.smoke_test \
+            --url http://127.0.0.1:8000 \
+            --expected-model-info "$RUNNER_TEMP/atp-registry/expected-model.json" \
+            --timeout 90
+
+      - name: Show container logs on failure
+        if: failure()
+        run: docker logs atp-build
+
+      - name: Remove the test container
+        if: always()
+        run: docker rm --force atp-build > /dev/null 2>&1 || true
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Push the image tagged with the commit SHA
+        run: |
+          docker push "$IMAGE:$GITHUB_SHA"
+          docker inspect --format '{{index .RepoDigests 0}}' "$IMAGE:$GITHUB_SHA"
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    permissions:
+      id-token: write
+      contents: read
+    # Same group as the CT redeploy job, so two deployments never overlap.
+    concurrency:
+      group: atp-production-deploy
+      cancel-in-progress: false
+    env:
+      IMAGE: ghcr.io/${{ github.repository }}:${{ github.sha }}
+      MODEL_NAME: ${{ vars.MODEL_NAME || 'atp-match-winner' }}
+      APP_URL: ${{ vars.APP_URL }}
+      RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
+      APP_NAME: ${{ vars.AZURE_CONTAINERAPP_NAME }}
+    steps:
+      - name: Check the settings
+        run: |
+          for name in APP_URL RESOURCE_GROUP APP_NAME; do
+            if [ -z "${!name}" ]; then
+              echo "$name is empty." >&2
+              exit 1
+            fi
+          done
+
+      - name: Check out the code
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: app/requirements.txt
+
+      - name: Install the serving dependencies
+        run: python -m pip install -r app/requirements.txt
+
+      - name: Read the expected production champion
+        env:
+          MLFLOW_TRACKING_URI: ${{ vars.MLFLOW_TRACKING_URI }}
+          MLFLOW_TRACKING_USERNAME: ${{ vars.MLFLOW_TRACKING_USERNAME }}
+          MLFLOW_TRACKING_PASSWORD: ${{ secrets.MLFLOW_TRACKING_PASSWORD }}
+        run: python -m scripts.expected_model --output "$RUNNER_TEMP/expected-model.json"
+
+      - name: Log in to Azure with OIDC
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Store the DagsHub token as a Container App secret
+        env:
+          MLFLOW_TRACKING_PASSWORD: ${{ secrets.MLFLOW_TRACKING_PASSWORD }}
+        run: |
+          az extension add --name containerapp --upgrade --only-show-errors
+          az containerapp secret set \
+            --name "$APP_NAME" \
+            --resource-group "$RESOURCE_GROUP" \
+            --secrets "mlflow-password=$MLFLOW_TRACKING_PASSWORD" \
+            --output none
+
+      - name: Point the ingress at the application port
+        run: |
+          az containerapp ingress update \
+            --name "$APP_NAME" \
+            --resource-group "$RESOURCE_GROUP" \
+            --target-port 8000 \
+            --output none
+
+      - name: Deploy the image tagged with the commit SHA
+        env:
+          MLFLOW_TRACKING_URI: ${{ vars.MLFLOW_TRACKING_URI }}
+          MLFLOW_TRACKING_USERNAME: ${{ vars.MLFLOW_TRACKING_USERNAME }}
+        run: |
+          az containerapp update \
+            --name "$APP_NAME" \
+            --resource-group "$RESOURCE_GROUP" \
+            --image "$IMAGE" \
+            --set-env-vars \
+              "MODEL_NAME=$MODEL_NAME" \
+              "PORT=8000" \
+              "MLFLOW_TRACKING_URI=$MLFLOW_TRACKING_URI" \
+              "MLFLOW_TRACKING_USERNAME=$MLFLOW_TRACKING_USERNAME" \
+              "MLFLOW_TRACKING_PASSWORD=secretref:mlflow-password" \
+            --output none
+
+      - name: Wait until the new revision is ready
+        run: |
+          deadline=$((SECONDS + 900))
+          while [ "$SECONDS" -lt "$deadline" ]; do
+            latest=$(az containerapp show -n "$APP_NAME" -g "$RESOURCE_GROUP" \
+              --query properties.latestRevisionName -o tsv)
+            ready=$(az containerapp show -n "$APP_NAME" -g "$RESOURCE_GROUP" \
+              --query properties.latestReadyRevisionName -o tsv)
+            image=$(az containerapp revision show -n "$APP_NAME" -g "$RESOURCE_GROUP" \
+              --revision "$latest" --query 'properties.template.containers[0].image' -o tsv)
+            echo "Latest revision: $latest, latest ready: ${ready:-none}"
+            if [ "$latest" = "$ready" ] && [ "$image" = "$IMAGE" ]; then
+              exit 0
+            fi
+            sleep 15
+          done
+          echo "The new revision did not become ready in time." >&2
+          echo "Container Apps keeps serving the previous healthy revision." >&2
+          echo "Check the logs, then run CT with operation=rollback if the model is the cause." >&2
+          exit 1
+
+      - name: Smoke test the public URL
+        run: |
+          python -m scripts.smoke_test \
+            --url "$APP_URL" \
+            --expected-model-info "$RUNNER_TEMP/expected-model.json" \
+            --timeout 600
