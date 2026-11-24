@@ -1,0 +1,526 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#153f32" />
+    <meta
+      name="description"
+      content="Composez votre duel ATP, choisissez les conditions du match et découvrez le favori avec Courtside."
+    />
+    <title>Courtside — Votre prochain duel</title>
+    <link rel="icon" href="/static/favicon.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="/static/styles.css" />
+    <script src="/static/app.js" defer></script>
+  </head>
+  <body>
+    <svg
+      class="icon-library"
+      xmlns="http://www.w3.org/2000/svg"
+      aria-hidden="true"
+    >
+      <symbol id="ball" viewBox="0 0 24 24">
+        <circle cx="12" cy="12" r="9.5" />
+        <path d="M5 5.5c5 2.5 5 10.5 0 13M19 5.5c-5 2.5-5 10.5 0 13" />
+      </symbol>
+      <symbol id="chevron" viewBox="0 0 24 24">
+        <path d="m7 10 5 5 5-5" />
+      </symbol>
+      <symbol id="search" viewBox="0 0 24 24">
+        <circle cx="10.5" cy="10.5" r="6.5" />
+        <path d="m16 16 4 4" />
+      </symbol>
+      <symbol id="court" viewBox="0 0 24 24">
+        <rect x="3" y="4" width="18" height="16" rx="1" />
+        <path d="M7 4v16M17 4v16M7 8h10M7 16h10M12 8v8M3 12h18" />
+      </symbol>
+      <symbol id="swap" viewBox="0 0 24 24">
+        <path
+          d="M5 8a8 8 0 0 1 14-1l1 3M20 4v6h-6M19 16a8 8 0 0 1-14 1l-1-3M4 20v-6h6"
+        />
+      </symbol>
+      <symbol id="check" viewBox="0 0 24 24">
+        <path d="m5 12 4 4L19 6" />
+      </symbol>
+      <symbol id="close" viewBox="0 0 24 24">
+        <path d="m6 6 12 12M18 6 6 18" />
+      </symbol>
+    </svg>
+
+    <header class="site-header">
+      <a href="/" class="brand" aria-label="Courtside, accueil"
+        ><span class="brand-mark"
+          ><svg><use href="#ball" /></svg></span
+        >courtside<span class="brand-period">.</span></a
+      >
+      <nav aria-label="Navigation principale">
+        <a class="nav-active" href="#simulator" aria-current="page"
+          >Le simulateur</a
+        ><button class="nav-link" type="button" id="about-open">
+          Le modèle
+        </button>
+      </nav>
+      <span class="header-caption">L’AVANT-MATCH, AUTREMENT.</span>
+    </header>
+
+    <main>
+      <section class="intro" aria-labelledby="page-title">
+        <div class="intro-copy">
+          <p class="eyebrow"><span></span> ATP · SIMPLE MESSIEURS</p>
+          <h1 id="page-title">Deux joueurs.<br /><em>Un seul favori.</em></h1>
+          <p class="intro-description">
+            Les grandes affiches commencent ici. Choisissez vos joueurs,<br
+              class="desktop-break"
+            />
+            posez le décor et découvrez de quel côté penche le match.
+          </p>
+        </div>
+        <div class="court-art" aria-hidden="true">
+          <svg viewBox="0 0 380 240" class="hero-court">
+            <defs>
+              <pattern
+                id="court-grain"
+                width="6"
+                height="6"
+                patternUnits="userSpaceOnUse"
+              >
+                <path d="M0 0h6" stroke="#fff" stroke-opacity=".035" />
+              </pattern>
+            </defs>
+            <rect
+              x="29"
+              y="17"
+              width="322"
+              height="204"
+              rx="5"
+              fill="#153f32"
+            />
+            <rect
+              x="29"
+              y="17"
+              width="322"
+              height="204"
+              rx="5"
+              fill="url(#court-grain)"
+            />
+            <g fill="none" stroke="#dbe7d5" stroke-width="1.4" opacity=".8">
+              <path
+                d="M64 42h252v154H64zM64 62h252M64 176h252M124 62v114M256 62v114M124 119h132"
+              />
+              <path d="M190 35v168" stroke-dasharray="2 3" stroke-width="2" />
+            </g>
+            <circle cx="270" cy="77" r="15" fill="#d7ed81" />
+            <g fill="none" stroke="#153f32" stroke-width="1.2">
+              <path d="M260 66c10 6 8 17 0 22M280 66c-10 6-8 17 0 22" />
+            </g>
+            <circle cx="190" cy="119" r="3" fill="#d7ed81" />
+          </svg>
+          <span class="court-caption">L’INSTINCT RENCONTRE LES DONNÉES.</span>
+        </div>
+      </section>
+
+      <section class="simulator" id="simulator" aria-labelledby="duel-heading">
+        <div class="section-heading">
+          <h2 id="duel-heading">Composez votre affiche</h2>
+          <p id="snapshot-label">Chargement des joueurs…</p>
+        </div>
+        <form id="match-form">
+          <div class="player-grid">
+            <section
+              class="player-card side-a"
+              data-side="a"
+              aria-label="Joueur A"
+            >
+              <div class="player-topline">
+                <span class="side-label"
+                  ><span class="side-dot"></span> JOUEUR A</span
+                ><span class="country" id="country-a">—</span>
+              </div>
+              <div class="player-picker">
+                <button
+                  type="button"
+                  class="player-choice"
+                  id="choice-a"
+                  aria-expanded="false"
+                  aria-controls="picker-a"
+                >
+                  <span
+                    ><span class="player-first" id="first-a">Joueur</span
+                    ><span class="player-last" id="last-a">A</span></span
+                  ><span class="choice-chevron"
+                    ><svg><use href="#chevron" /></svg
+                  ></span>
+                </button>
+                <button type="button" class="change-player" data-open="a">
+                  Changer de joueur
+                </button>
+                <div class="picker-popover" id="picker-a" hidden>
+                  <div class="search-wrap">
+                    <svg><use href="#search" /></svg
+                    ><input
+                      type="search"
+                      id="search-a"
+                      placeholder="Rechercher un joueur…"
+                      aria-label="Rechercher le joueur A"
+                      role="combobox"
+                      aria-autocomplete="list"
+                      aria-controls="options-a"
+                      aria-expanded="false"
+                      autocomplete="off"
+                    />
+                  </div>
+                  <ul
+                    id="options-a"
+                    role="listbox"
+                    aria-label="Joueurs disponibles"
+                  ></ul>
+                  <p class="search-note">
+                    Joueurs classés avec un profil complet
+                  </p>
+                </div>
+              </div>
+              <div class="stats-primary">
+                <label
+                  >Classement ATP<span class="input-unit"
+                    ><span class="rank-prefix">#</span
+                    ><input
+                      name="player_a_rank"
+                      type="number"
+                      required
+                      aria-label="Classement ATP du joueur A" /></span></label
+                ><label
+                  >Points ATP<input
+                    name="player_a_rank_points"
+                    type="number"
+                    required
+                    aria-label="Points ATP du joueur A"
+                /></label>
+              </div>
+              <div class="stats-secondary">
+                <label
+                  >Âge<span class="input-unit"
+                    ><input
+                      name="player_a_age"
+                      type="number"
+                      step="0.1"
+                      required
+                      aria-label="Âge du joueur A"
+                    /><span>ans</span></span
+                  ></label
+                ><label
+                  >Taille<span class="input-unit"
+                    ><input
+                      name="player_a_ht"
+                      type="number"
+                      required
+                      aria-label="Taille du joueur A"
+                    /><span>cm</span></span
+                  ></label
+                ><label
+                  >Main<select
+                    name="player_a_hand"
+                    aria-label="Main du joueur A"
+                  ></select
+                ></label>
+              </div>
+              <div class="player-bottom">
+                <span class="profile-note" id="profile-a"
+                  >Profil du snapshot</span
+                ><button type="button" class="text-button" data-custom="a">
+                  Profil libre
+                </button>
+              </div>
+            </section>
+
+            <div class="duel-divider">
+              <span class="versus">vs</span
+              ><button
+                type="button"
+                id="swap-players"
+                aria-label="Inverser les joueurs"
+                title="Inverser les joueurs"
+              >
+                <svg><use href="#swap" /></svg>
+              </button>
+            </div>
+
+            <section
+              class="player-card side-b"
+              data-side="b"
+              aria-label="Joueur B"
+            >
+              <div class="player-topline">
+                <span class="side-label"
+                  ><span class="side-dot"></span> JOUEUR B</span
+                ><span class="country" id="country-b">—</span>
+              </div>
+              <div class="player-picker">
+                <button
+                  type="button"
+                  class="player-choice"
+                  id="choice-b"
+                  aria-expanded="false"
+                  aria-controls="picker-b"
+                >
+                  <span
+                    ><span class="player-first" id="first-b">Joueur</span
+                    ><span class="player-last" id="last-b">B</span></span
+                  ><span class="choice-chevron"
+                    ><svg><use href="#chevron" /></svg
+                  ></span>
+                </button>
+                <button type="button" class="change-player" data-open="b">
+                  Changer de joueur
+                </button>
+                <div class="picker-popover" id="picker-b" hidden>
+                  <div class="search-wrap">
+                    <svg><use href="#search" /></svg
+                    ><input
+                      type="search"
+                      id="search-b"
+                      placeholder="Rechercher un joueur…"
+                      aria-label="Rechercher le joueur B"
+                      role="combobox"
+                      aria-autocomplete="list"
+                      aria-controls="options-b"
+                      aria-expanded="false"
+                      autocomplete="off"
+                    />
+                  </div>
+                  <ul
+                    id="options-b"
+                    role="listbox"
+                    aria-label="Joueurs disponibles"
+                  ></ul>
+                  <p class="search-note">
+                    Joueurs classés avec un profil complet
+                  </p>
+                </div>
+              </div>
+              <div class="stats-primary">
+                <label
+                  >Classement ATP<span class="input-unit"
+                    ><span class="rank-prefix">#</span
+                    ><input
+                      name="player_b_rank"
+                      type="number"
+                      required
+                      aria-label="Classement ATP du joueur B" /></span></label
+                ><label
+                  >Points ATP<input
+                    name="player_b_rank_points"
+                    type="number"
+                    required
+                    aria-label="Points ATP du joueur B"
+                /></label>
+              </div>
+              <div class="stats-secondary">
+                <label
+                  >Âge<span class="input-unit"
+                    ><input
+                      name="player_b_age"
+                      type="number"
+                      step="0.1"
+                      required
+                      aria-label="Âge du joueur B"
+                    /><span>ans</span></span
+                  ></label
+                ><label
+                  >Taille<span class="input-unit"
+                    ><input
+                      name="player_b_ht"
+                      type="number"
+                      required
+                      aria-label="Taille du joueur B"
+                    /><span>cm</span></span
+                  ></label
+                ><label
+                  >Main<select
+                    name="player_b_hand"
+                    aria-label="Main du joueur B"
+                  ></select
+                ></label>
+              </div>
+              <div class="player-bottom">
+                <span class="profile-note" id="profile-b"
+                  >Profil du snapshot</span
+                ><button type="button" class="text-button" data-custom="b">
+                  Profil libre
+                </button>
+              </div>
+            </section>
+          </div>
+
+          <section class="match-settings" aria-labelledby="settings-title">
+            <div class="settings-title">
+              <svg><use href="#court" /></svg>
+              <h2 id="settings-title">Le terrain de jeu</h2>
+              <span>À vous de poser les conditions.</span>
+            </div>
+            <div class="settings-grid">
+              <fieldset class="surface-field">
+                <legend>Surface</legend>
+                <div class="surface-options" id="surface-options"></div>
+              </fieldset>
+              <label class="tournament-field"
+                >Tournoi<span class="select-wrap"
+                  ><select name="tourney_level" id="tourney-level"></select
+                  ><svg><use href="#chevron" /></svg></span
+              ></label>
+              <fieldset class="format-field">
+                <legend>Format du match</legend>
+                <div class="format-options" id="format-options"></div>
+              </fieldset>
+            </div>
+          </section>
+
+          <div class="submit-row">
+            <p>
+              <svg><use href="#ball" /></svg> Une affiche. Des données. Votre
+              pronostic.
+            </p>
+            <button type="submit" id="simulate" class="primary-button" disabled>
+              <svg><use href="#ball" /></svg><span>Simuler le match</span>
+            </button>
+          </div>
+          <p id="form-error" class="form-error" role="alert" hidden></p>
+        </form>
+
+        <section
+          class="result-panel"
+          id="result"
+          aria-labelledby="result-title"
+          aria-live="polite"
+          aria-busy="false"
+        >
+          <div id="result-empty" class="result-empty">
+            <span class="empty-icon"
+              ><svg><use href="#court" /></svg
+            ></span>
+            <div>
+              <h2 id="result-title">Le court attend ses joueurs.</h2>
+              <p>
+                Lancez le match pour découvrir le favori et les chances de
+                chacun.
+              </p>
+            </div>
+            <span class="result-tag">AVANT-MATCH</span>
+          </div>
+          <div id="result-content" hidden>
+            <div class="result-topline">
+              <span class="eyebrow">LE VERDICT DES DONNÉES</span
+              ><span id="result-version" class="result-version"></span>
+            </div>
+            <div class="winner-line">
+              <div>
+                <p class="winner-caption" id="winner-caption">
+                  Favori du match
+                </p>
+                <h2 id="winner-name"></h2>
+              </div>
+              <div class="winner-chance">
+                <strong id="winner-probability"></strong
+                ><span>de chances de victoire</span>
+              </div>
+            </div>
+            <div class="probability-labels">
+              <span id="result-player-a"></span
+              ><span id="result-player-b"></span>
+            </div>
+            <div class="probability-bar"><div id="probability-a"></div></div>
+            <p class="result-explanation">
+              Une estimation avant le match, fondée sur les profils et les
+              conditions sélectionnés. Le terrain garde le dernier mot.
+            </p>
+          </div>
+        </section>
+      </section>
+
+      <section class="how-it-works" aria-label="Fonctionnement">
+        <div>
+          <span class="feature-icon"
+            ><svg><use href="#search" /></svg
+          ></span>
+          <h3>De vrais profils</h3>
+          <p>
+            Des joueurs du circuit et leurs statistiques, réunis dans un catalogue
+            daté.
+          </p>
+        </div>
+        <div>
+          <span class="feature-icon"
+            ><svg><use href="#court" /></svg
+          ></span>
+          <h3>Votre match, vos conditions</h3>
+          <p>
+            Surface, tournoi et format : définissez le contexte de votre duel.
+          </p>
+        </div>
+        <div>
+          <span class="feature-icon"
+            ><svg><use href="#check" /></svg
+          ></span>
+          <h3>Un modèle, en toute clarté</h3>
+          <p>
+            Des probabilités et une version identifiable pour chaque prédiction.
+          </p>
+        </div>
+      </section>
+    </main>
+
+    <footer>
+      <div>
+        <a class="footer-brand" href="/">courtside.</a
+        ><span>Le tennis, éclairé par les données.</span>
+      </div>
+      <button type="button" id="source-open" class="footer-link">
+        Données & méthode</button
+      ><span id="model-status" class="model-status">Connexion au modèle…</span>
+    </footer>
+
+    <dialog id="about-dialog" aria-labelledby="about-title">
+      <div class="dialog-heading">
+        <span class="eyebrow">DERRIÈRE LE PRONOSTIC</span
+        ><button type="button" id="about-close" aria-label="Fermer">
+          <svg><use href="#close" /></svg>
+        </button>
+      </div>
+      <h2 id="about-title">Le jeu, côté données.</h2>
+      <p>
+        Courtside estime la probabilité de victoire avant un match ATP à partir
+        de 13 caractéristiques : classement, points, âge, taille et main de
+        chaque joueur, ainsi que surface, catégorie du tournoi et format du
+        match.
+      </p>
+      <p>
+        Le nom sert à sélectionner un profil. Il n’est jamais transmis au
+        modèle. Les statistiques restent modifiables pour explorer d’autres
+        duels.
+      </p>
+      <div class="method-detail">
+        <strong id="method-model">Modèle en cours de connexion</strong>
+        <p id="method-source"></p>
+      </div>
+      <p>
+        Le catalogue est un snapshot daté, pas un classement en direct. Les âges
+        sont calculés à la date du classement. Les joueurs dont le profil est
+        incomplet sont écartés.
+      </p>
+      <p class="attribution">
+        Source : Jeff Sackmann / tennis_atp, via
+        <a
+          href="https://github.com/Aneeshers/tennis-sackmann-archive"
+          target="_blank"
+          rel="noopener noreferrer"
+          >l’archive tennis-sackmann</a
+        >. Données et catalogue dérivé sous
+        <a
+          href="https://creativecommons.org/licenses/by-nc-sa/4.0/"
+          target="_blank"
+          rel="noopener noreferrer"
+          >CC BY-NC-SA 4.0</a
+        >. Projet académique non commercial.
+      </p>
+    </dialog>
+  </body>
+</html>
