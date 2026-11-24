@@ -1,9 +1,10 @@
 # Experiments
 
 All runs are tracked on the shared DagsHub MLflow server
-(`https://dagshub.com/zorobabel33/atp-match-predictor.mlflow`). Results below were produced on
-2026-11-22 with a clean git tree: model selection and real-data runs from commit `656322e`,
-controlled staging runs from commit `f1dae74`.
+(`https://dagshub.com/zorobabel33/atp-match-predictor.mlflow`). Development results were produced
+on 2026-11-22 with a clean git tree: model selection and real-data runs from commit `656322e`,
+controlled staging runs from commit `f1dae74`. Official runs of the CT workflow on `main` followed
+on 2026-11-24 (see [Production runs](#production-runs-on-main)).
 
 ## Primary metric
 
@@ -70,6 +71,23 @@ after this result.
 **Production model choice:** the v1 logistic regression, approved at ROC-AUC 0.7002 on 2022 and
 still 0.7000 on 2023, about 0.036 above the ranking rule on unseen seasons.
 
+## Production runs on main
+
+CT workflow dispatched from `main`, model `atp-match-winner`, data pulled from the Azure DVC remote.
+The official runs reproduce the development results exactly.
+
+| Run | Data | Decision | Champion | Candidate | Ranking rule | Commit | run_id |
+|---|---|---|---|---|---|---|---|
+| [45363849537](https://github.com/zorobabel33/atp-match-predictor/actions/runs/45363849537) | v1, eval 2022 | `bootstrapped`, version 1 | - | 0.7002 | 0.6783 | `7fa3ea1` | `e416799e01dc48c0909ab7f5aa1c7c9b` |
+| [45427613082](https://github.com/zorobabel33/atp-match-predictor/actions/runs/45427613082) | v2, eval 2023 | `retain_rejected` (-0.0006) | 0.7000 | 0.6994 | 0.6640 | `7e3cec5` | `37874028a48343eeb4fa7e2424b7752c` |
+| [45428157811](https://github.com/zorobabel33/atp-match-predictor/actions/runs/45428157811) | v1, eval 2022 | `retain_no_retraining` | 0.7002 | - | 0.6783 | `7e3cec5` | `8a815bf40c3140cf8ff8fb7c3e555e89` |
+
+The production champion is `atp-match-winner` version 1 (`approval=approved`,
+`approval_roc_auc=0.7002`, DVC hash `489cf3860f33ee4343e88d6501934d80.dir`). The first attempts of
+run 45363849537 failed before training because the DagsHub token stored in the GitHub secret was
+quoted; the third attempt ran after fixing the secret. In the two `retain` runs the champion did not
+move, so the `refresh-online-model` job was skipped and the live app kept serving version 1.
+
 ## Controlled promotion and rollback
 
 The real v2 does not produce a promotion, so promotion and rollback are demonstrated on a separate
@@ -88,6 +106,22 @@ the same; runs are tagged `data_source=local` and log no DVC hash.
 Both versions of `atp-match-winner-staging` are approved, so a live rollback can switch between 1
 and 2.
 
+### Live promotion and rollback on the public URL
+
+On 2026-11-24 the repository variable `MODEL_NAME` was set to `atp-match-winner-staging`, and the CT
+workflow on `main` moved its `champion` alias. Each time, the `refresh-online-model` job started a
+new Container App revision, waited until the public URL served the expected version, and checked it
+with a real prediction. The production model `atp-match-winner` was not modified.
+
+| Run | Operation | Decision | Live `/model-info` after the run | run_id |
+|---|---|---|---|---|
+| [45429959680](https://github.com/zorobabel33/atp-match-predictor/actions/runs/45429959680) | rollback to 2 | `rolled_back`, 1 -> 2 | `atp-match-winner-staging` version 2 | `3d4b3e0ed9384492af7c5f997fe08a73` |
+| [45430549636](https://github.com/zorobabel33/atp-match-predictor/actions/runs/45430549636) | rollback to 1 | `rolled_back`, 2 -> 1 | `atp-match-winner-staging` version 1 | `c7a865b3ad624da58c9b1dcb7f474933` |
+
+`MODEL_NAME` was then deleted and the deploy job re-run
+([45424276715](https://github.com/zorobabel33/atp-match-predictor/actions/runs/45424276715), attempt
+2): the public URL serves `atp-match-winner` version 1 again, confirmed by the smoke test.
+
 The same decisions (bootstrap, retain, promote, reject, invalid data, older window, rollback,
 refused rollback) are covered by `tests/test_pipeline.py` on a temporary local registry in CI.
 
@@ -99,4 +133,6 @@ MODEL_NAME=atp-match-winner-dev MLFLOW_EXPERIMENT_NAME=atp-match-winner-dev \
   python -m ml.pipeline --dataset-version v1
 ```
 
-Production runs use the CT workflow (`.github/workflows/ct.yml`) with the model `atp-match-winner`.
+Production runs use the CT workflow (`.github/workflows/ct.yml`) from `main`: Actions -> CT -> Run
+workflow, `operation=pipeline` and a `dataset_version`, or `operation=rollback` and a
+`rollback_version`.
