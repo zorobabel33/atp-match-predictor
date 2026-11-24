@@ -14,13 +14,21 @@ from mlflow.exceptions import MlflowException
 
 from ml import policy
 from ml.data import ROOT, VERSIONS, DataError, dvc_hash, dvc_pointer, fetch, validate_release
-from ml.model import HYPERPARAMETERS, evaluate, rank_reference_auc, train_model
+from ml.model import (
+    HYPERPARAMETERS,
+    compare_distributions,
+    evaluate,
+    rank_reference_auc,
+    train_model,
+    training_profile,
+)
 from ml.registry import (
     APPROVAL_TAG,
     APPROVED,
     DEFAULT_EXPERIMENT,
     configure_tracking,
     get_champion,
+    load_training_profile,
     load_version,
     move_champion,
     record_candidate,
@@ -59,6 +67,10 @@ def run_release(client, name, release, workspace, result):
         mlflow.log_param("dvc_md5", result["dvc_md5"])
         shutil.copyfile(dvc_pointer(release), workspace / f"{release}.dvc")
     train, evaluation = validate_release(fetch(release))
+    _write_json(workspace / "training-profile.json", training_profile(
+        train, model_run_id=result["run_id"], dataset_version=release,
+        dvc_md5=result.get("dvc_md5"), data_source=result["data_source"],
+    ))
     result["validation"] = "passed"
     mlflow.set_tag("validation", "passed")
     mlflow.log_metrics({"train_rows": len(train), "evaluation_rows": len(evaluation)})
@@ -82,6 +94,17 @@ def run_release(client, name, release, workspace, result):
 
     champion_auc = None
     if champion:
+        try:
+            drift = compare_distributions(load_training_profile(client, champion), evaluation)
+            _write_json(workspace / "drift.json", {
+                "reference_version": champion_version, "threshold": policy.DRIFT_THRESHOLD,
+                "features": drift, "drifted": [n for n, v in drift.items()
+                                               if v >= policy.DRIFT_THRESHOLD],
+            })
+            mlflow.log_metrics({f"drift_{name}": value for name, value in drift.items()})
+        except (MlflowException, OSError, ValueError, KeyError):
+            # Legacy champions can be backfilled without retraining or moving their alias.
+            result["drift_reference"] = "unavailable"
         if int(champion.tags["training_last_date"]) >= evaluation["tourney_date"].min():
             # The data itself is valid: this is a release order error, not a validation failure.
             raise ValueError("This evaluation window is older than the champion's training data")

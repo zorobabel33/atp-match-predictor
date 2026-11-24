@@ -8,6 +8,8 @@ MIN_ROC_AUC = 0.68
 # About twice the bootstrap standard deviation (0.0005) of a paired ROC-AUC difference.
 MIN_ROC_AUC_IMPROVEMENT = 0.001
 MAX_ROC_AUC_DROP = 0.02
+# Monitoring signal only: investigate drift; promotion still uses the existing quality gates.
+DRIFT_THRESHOLD = 0.20
 
 
 def retraining_trigger(champion_auc, approval_auc, champion_dataset, dataset_version):

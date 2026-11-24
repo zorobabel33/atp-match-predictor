@@ -151,6 +151,13 @@ demonstrations on synthetic releases, see `ml/README_experiments.md`).
 
 ## Local development
 
+### Monitoring exercise
+
+See [MONITORING.md](MONITORING.md) for JSON logs and request IDs, Prometheus metrics, the
+provisioned six-panel Grafana dashboard, local SMTP alerts and model/reference rollback.
+The exercise uses the existing Courtside image and 13-feature contract, with isolated synthetic
+models and a Mailpit inbox by default. It does not modify the public Azure deployment.
+
 ### Docker
 
 Build the production image from the repository root:
