@@ -5,7 +5,6 @@ const form = $("#match-form");
 const submit = $("#simulate");
 const sides = ["a", "b"];
 const selected = { a: null, b: null };
-const modified = { a: false, b: false };
 const activeOptions = { a: -1, b: -1 };
 let players = [];
 let contract = null;
@@ -82,19 +81,16 @@ function showIdentity(side) {
   const words = displayName(side).split(" ");
   $("#first-" + side).textContent = words.slice(0, -1).join(" ");
   $("#last-" + side).textContent = words.at(-1);
-  $("#country-" + side).textContent = person?.country || "LIBRE";
-  $("#profile-" + side).textContent = modified[side]
-    ? "Profil modifié"
-    : person?.id
-      ? "Profil du snapshot"
-      : "Profil personnalisé";
+  $("#country-" + side).textContent = person?.country || "—";
 }
 
 function setPlayer(side, person) {
   selected[side] = { ...person };
-  modified[side] = false;
   for (const feature of ["rank", "rank_points", "age", "ht", "hand"]) {
-    form.elements[`player_${side}_${feature}`].value = person[feature];
+    form.elements[`player_${side}_${feature}`].value =
+      feature === "hand"
+        ? labels.hand[person[feature]]
+        : number.format(person[feature]);
   }
   showIdentity(side);
   closePicker(side);
@@ -157,7 +153,7 @@ function renderOptions(side) {
     empty.className = "no-results";
     empty.role = "presentation";
     empty.textContent =
-      "Aucun joueur trouvé. Essayez un autre nom ou un profil libre.";
+      "Aucun joueur trouvé. Essayez un autre nom.";
     list.append(empty);
   }
 }
@@ -209,20 +205,6 @@ for (const side of sides) {
       buttons[Math.max(activeOptions[side], 0)]?.click();
     }
   });
-  $(`[data-custom="${side}"]`).addEventListener("click", () => {
-    if (!contract) return;
-    const profile = {
-      id: null,
-      name: `Joueur ${side.toUpperCase()}`,
-      country: "LIBRE",
-    };
-    for (const feature of ["rank", "rank_points", "age", "ht", "hand"]) {
-      const field = form.elements[`player_${side}_${feature}`];
-      profile[feature] = feature === "hand" ? field.value : Number(field.value);
-    }
-    setPlayer(side, profile);
-    form.elements[`player_${side}_rank`].focus();
-  });
 }
 
 document.addEventListener("click", (event) => {
@@ -239,30 +221,14 @@ document.addEventListener("focusin", (event) => {
 });
 
 form.addEventListener("input", (event) => {
-  const side = event.target.name?.match(/^player_([ab])_/i)?.[1];
-  if (side && !event.target.matches("[type=search]")) {
-    modified[side] = true;
-    showIdentity(side);
-  }
   if (!event.target.matches("[type=search]")) invalidate();
 });
 
 $("#swap-players").addEventListener("click", () => {
   if (!selected.a || !selected.b) return;
-  const profiles = {};
-  const edits = { ...modified };
-  for (const side of sides) {
-    profiles[side] = { ...selected[side] };
-    for (const feature of ["rank", "rank_points", "age", "ht", "hand"]) {
-      profiles[side][feature] =
-        form.elements[`player_${side}_${feature}`].value;
-    }
-  }
-  setPlayer("a", profiles.b);
-  setPlayer("b", profiles.a);
-  modified.a = edits.b;
-  modified.b = edits.a;
-  sides.forEach(showIdentity);
+  const { a, b } = selected;
+  setPlayer("a", b);
+  setPlayer("b", a);
 });
 
 function makeRadio(group, name, value, text, checked, surfaceClass = null) {
@@ -286,18 +252,6 @@ function makeRadio(group, name, value, text, checked, surfaceClass = null) {
 
 function configureForm(data) {
   contract = data;
-  for (const [name, [low, high]] of Object.entries(data.ranges)) {
-    const input = form.elements[name];
-    if (low !== null) input.min = low;
-    if (high !== null) input.max = high;
-    input.step = data.integer.includes(name) ? "1" : "0.1";
-  }
-  for (const side of sides) {
-    const select = form.elements[`player_${side}_hand`];
-    for (const value of data.allowed_values[`player_${side}_hand`]) {
-      select.add(new Option(labels.hand[value] || value, value));
-    }
-  }
   for (const value of data.allowed_values.surface) {
     makeRadio(
       $("#surface-options"),
@@ -327,7 +281,7 @@ function configureForm(data) {
     : data.allowed_values.tourney_level[0];
 }
 
-function renderResult(result, names, edited) {
+function renderResult(result, names) {
   const score = result.probability_player_a_wins;
   if (
     !Number.isFinite(score) ||
@@ -349,7 +303,7 @@ function renderResult(result, names, edited) {
     `${names.b} · ${percent.format(1 - score)}`;
   $("#probability-a").style.width = `${score * 100}%`;
   $("#result-version").textContent =
-    `${modelInfo.data_source === "synthetic" ? "Démonstration · " : ""}Modèle v${result.model_version}${edited ? " · Profils modifiés" : ""}`;
+    `${modelInfo.data_source === "synthetic" ? "Démonstration · " : ""}Modèle v${result.model_version}`;
   $("#result-empty").hidden = true;
   $("#result-content").hidden = false;
   $("#result").classList.add("has-result");
@@ -359,7 +313,10 @@ function renderResult(result, names, edited) {
 
 form.addEventListener("submit", async (event) => {
   event.preventDefault();
-  if (!contract || currentRequest || !modelInfo || !form.reportValidity())
+  if (
+    !contract || !selected.a || !selected.b || currentRequest || !modelInfo
+    || !form.reportValidity()
+  )
     return;
   if (selected.a?.id && selected.a.id === selected.b?.id) {
     showError("Pour un vrai duel, choisissez deux joueurs différents.");
@@ -369,13 +326,17 @@ form.addEventListener("submit", async (event) => {
   const values = new FormData(form);
   const payload = {};
   for (const name of contract.features) {
+    const playerFeature = name.match(/^player_([ab])_(.+)$/);
+    if (playerFeature) {
+      payload[name] = selected[playerFeature[1]][playerFeature[2]];
+      continue;
+    }
     payload[name] =
       contract.integer.includes(name) || Object.hasOwn(contract.ranges, name)
         ? Number(values.get(name))
         : values.get(name);
   }
   const names = { a: displayName("a"), b: displayName("b") };
-  const edited = modified.a || modified.b;
   const controller = new AbortController();
   currentRequest = controller;
   const timeout = setTimeout(() => controller.abort("timeout"), 20000);
@@ -390,12 +351,12 @@ form.addEventListener("submit", async (event) => {
       body: JSON.stringify(payload),
       signal: controller.signal,
     });
-    if (currentRequest === controller) renderResult(result, names, edited);
+    if (currentRequest === controller) renderResult(result, names);
   } catch (error) {
     if (currentRequest !== controller) return;
     if (error.status === 422)
       showError(
-        "Un champ ne respecte pas le format attendu. Vérifiez les caractéristiques des joueurs et les conditions du match.",
+        "Les données de ce duel n’ont pas pu être validées. Choisissez d’autres joueurs ou conditions de match.",
       );
     else if (error.status === 503)
       showError(

@@ -351,7 +351,7 @@ h2 {
   display: block;
   min-width: 0;
 }
-.player-card input {
+.player-card output {
   display: block;
   min-width: 0;
   width: 100%;
@@ -364,20 +364,6 @@ h2 {
   color: var(--ink);
   font-weight: 500;
   border-radius: 2px;
-}
-.player-card input:hover {
-  background: #f7f9f4;
-}
-.player-card input:focus {
-  background: #f1f5ea;
-}
-.player-card input::-webkit-inner-spin-button,
-.player-card input::-webkit-outer-spin-button {
-  -webkit-appearance: none;
-  margin: 0;
-}
-.player-card input[type="number"] {
-  -moz-appearance: textfield;
 }
 .input-unit {
   display: flex;
@@ -401,26 +387,22 @@ h2 {
   padding: 21px 0 23px;
   gap: 15px;
 }
-.stats-secondary input {
+.stats-secondary output {
   font-size: 20px;
   letter-spacing: -0.5px;
   width: 3.4ch;
   min-width: 3.4ch;
 }
-.stats-secondary input[name$="age"] {
+.stats-secondary output[name$="age"] {
   width: 3.7ch;
   min-width: 3.7ch;
 }
-.stats-secondary select {
+.stats-secondary output[name$="_hand"] {
   font-size: 15px;
   border: 0;
   background-color: transparent;
   padding: 8px 15px 4px 0;
   width: 100%;
-  appearance: none;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='none' stroke='%2369766f'%3E%3Cpath d='m3 4 3 3 3-3'/%3E%3C/svg%3E");
-  background-repeat: no-repeat;
-  background-position: right 4px center;
 }
 .player-bottom {
   margin: 0 -30px;
@@ -436,13 +418,6 @@ h2 {
   font-size: 12px;
   color: #7b8578;
 }
-.text-button {
-  font-size: 12px;
-  background: none;
-  padding: 0;
-  color: #4e6b51;
-}
-.text-button:hover,
 .nav-link:hover {
   color: #253f24;
   text-decoration: underline;
@@ -1116,7 +1091,7 @@ dialog p {
   .stats-secondary {
     gap: 9px;
   }
-  .stats-secondary select {
+  .stats-secondary output[name$="_hand"] {
     font-size: 13px;
   }
   .settings-grid {
@@ -1251,7 +1226,7 @@ dialog p {
   .player-card label {
     font-size: 12px;
   }
-  .stats-primary input {
+  .stats-primary output {
     font-size: 25px;
   }
   .input-unit .rank-prefix {
@@ -1265,13 +1240,13 @@ dialog p {
   .stats-secondary label:last-child {
     grid-column: 1/-1;
   }
-  .stats-secondary select {
+  .stats-secondary output[name$="_hand"] {
     padding-top: 6px;
     padding-bottom: 0;
     width: auto;
     min-width: 90px;
   }
-  .stats-secondary input {
+  .stats-secondary output {
     font-size: 18px;
   }
   .input-unit > span {
@@ -1284,11 +1259,7 @@ dialog p {
   }
   .profile-note {
     font-size: 12px;
-    max-width: 85px;
-  }
-  .text-button {
-    font-size: 12px;
-    white-space: nowrap;
+    max-width: none;
   }
   .versus {
     font-size: 19px;
@@ -1482,7 +1453,7 @@ dialog p {
     gap: 13px;
     padding: 15px 0;
   }
-  .stats-primary input {
+  .stats-primary output {
     font-size: 26px;
     padding-top: 0;
     line-height: 1.25;
@@ -1498,11 +1469,11 @@ dialog p {
   .stats-secondary label:last-child {
     grid-column: auto;
   }
-  .stats-secondary input {
+  .stats-secondary output {
     font-size: 19px;
     padding-top: 2px;
   }
-  .stats-secondary select {
+  .stats-secondary output[name$="_hand"] {
     font-size: 13px;
     padding-top: 7px;
     padding-bottom: 0;
@@ -1519,9 +1490,6 @@ dialog p {
     font-size: 12px;
     max-width: none;
     width: 100%;
-  }
-  .text-button {
-    font-size: 12px;
   }
   .duel-divider {
     gap: 14px;
@@ -1733,7 +1701,6 @@ legend,
   font-size: 14px;
 }
 .profile-note,
-.text-button,
 .change-player,
 .player-bottom {
   font-size: 12px;
