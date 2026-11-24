@@ -292,8 +292,8 @@ python -m ml.compare_models                  # model selection on training seaso
 
 ## Use of AI tools
 
-We used an AI coding assistant (Claude Code) to work faster. Each member is the author of their
-part: we made the design decisions and reviewed and tested the code.
+We used AI coding assistants (Claude Code and Codex/ChatGPT) to help implement and check the
+project. Each member describes their responsibilities and use of these tools below.
 
 ### Enock: data, training pipeline, continuous training, team handoff
 
@@ -319,4 +319,11 @@ before 2026-11-23 carry an automatic `Co-Authored-By: Claude` trailer, turned of
 
 ### Paul and Adria
 
-To be completed by each of them for their part.
+**Paul (Alkpaul):** I specified the side-by-side player comparison and the sober tennis-inspired
+UI. My responsibilities were the web app and inference API, application tests, Docker packaging
+and container CI, following the team's 13-feature contract, startup loading of the approved
+champion and offline player catalogue. I used Codex/ChatGPT to generate much of the implementation,
+tests and Docker/CI configuration, troubleshoot integration, run checks and explain the tooling
+while I checked the interface behavior.
+
+**Adria:** To be completed.
