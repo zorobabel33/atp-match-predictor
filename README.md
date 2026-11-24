@@ -11,6 +11,35 @@ alias.
 Live demo: [Courtside on Azure](https://atp-match-predictor.happybush-1050e9f8.francecentral.azurecontainerapps.io/).
 See [DEPLOYMENT.md](DEPLOYMENT.md) for deployment checks and recovery.
 
+## Try it
+
+Open the URL above, pick two players, a surface, a tournament level and a match format, then
+predict. The page shows the probability for each player and the model version that answered.
+
+The same service as an API (replace `$APP_URL` with the URL above):
+
+```bash
+curl $APP_URL/model-info
+# {"model_name":"atp-match-winner","model_version":"1","run_id":"e416799e01dc48c0909ab7f5aa1c7c9b","dataset_version":"v1","data_source":"dvc"}
+
+curl -X POST $APP_URL/predict -H 'Content-Type: application/json' -d '{
+  "surface": "Hard", "tourney_level": "G", "best_of": 5,
+  "player_a_rank": 1, "player_a_rank_points": 9500, "player_a_age": 23.5, "player_a_ht": 188, "player_a_hand": "R",
+  "player_b_rank": 45, "player_b_rank_points": 1200, "player_b_age": 29.1, "player_b_ht": 183, "player_b_hand": "L"}'
+# {"probability_player_a_wins":0.9462046235037788,"predicted_winner":"player_a","model_version":"1"}
+```
+
+Sample inputs and the answers of the production model (version 1, 2026-11-24):
+
+| Match | Player A | Player B | P(A wins) | Predicted winner |
+|---|---|---|---|---|
+| Grand Slam, hard, best of 5 | rank 1, 9500 pts, 23.5 y, 188 cm, R | rank 45, 1200 pts, 29.1 y, 183 cm, L | 0.946 | `player_a` |
+| Masters, clay, best of 3 | rank 12, 2800 pts, 27.0 y, 185 cm, L | rank 3, 7000 pts, 24.2 y, 191 cm, R | 0.219 | `player_b` |
+| ATP 250/500, grass, best of 3 | rank 30, 1500 pts, 25.0 y, 196 cm, R | rank 28, 1550 pts, 33.0 y, 180 cm, R | 0.594 | `player_a` |
+
+Values outside the contract are rejected with HTTP 422, for example `"surface": "Carpet"` or
+`"player_a_rank": 0`. `GET /health` and `GET /ready` report liveness and readiness.
+
 ## Data source and license
 
 Match data comes from [JeffSackmann/tennis_atp](https://github.com/JeffSackmann/tennis_atp),
