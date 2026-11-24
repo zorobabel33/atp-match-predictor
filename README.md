@@ -201,9 +201,11 @@ need validation with the team's runtime settings and a pull request, respectivel
 
 ### Web app
 
-The Courtside interface compares two ATP player profiles, lets users edit all 13 input features,
-and shows the predicted winner, each player's probability and the loaded model version. It is
-served by FastAPI at `/`, with no JavaScript build step or external request from the browser.
+The Courtside interface compares two players selected from the ATP catalogue. Ranking, points,
+age, height and hand are fixed to each selected player's snapshot; only surface, tournament
+level and match format can be changed. It shows the predicted winner, each player's probability
+and the loaded model version. FastAPI serves it at `/`, with no JavaScript build step or external
+request from the browser.
 
 ```bash
 python -m venv .venv
@@ -261,9 +263,9 @@ using only synthetic data and a temporary SQLite registry.
 
 `app/static/players.json` contains 200 complete ranked player profiles. It is a dated snapshot
 (2026-06-08), not live rankings. Age is calculated at the ranking date. Unknown height, birth date
-or hand, and values outside `ml.contract`, are excluded without imputation. Fields can be edited
-in the UI; a free profile is also available. Selecting the same named player on both sides is
-rejected by the interface.
+or hand, and values outside `ml.contract`, are excluded without imputation. The interface displays
+player statistics as non-editable values and builds predictions from the selected catalogue
+profiles. Selecting the same player on both sides is rejected by the interface.
 
 Regenerate it with `python -m scripts.build_players`. The script downloads `atp_players.csv` and
 `atp_rankings_current.csv` from the same pinned archive commit as `ml.prepare_data`, caches the
@@ -325,7 +327,7 @@ before 2026-11-23 carry an automatic `Co-Authored-By: Claude` trailer, turned of
 My work on the project:
 
 - The Courtside interface: a sober tennis-inspired design with the two players side by side,
-  searchable player selection, editable statistics, match settings and a probability comparison.
+  searchable player selection, fixed player statistics, match settings and a probability comparison.
   The 200-player catalogue comes from the same pinned archive as the training data, with its
   snapshot date and attribution displayed, so the interface needs no live player API.
 - The inference API: input validation derived from `ml/contract.py`, the agreed `/predict`,
