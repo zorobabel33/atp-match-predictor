@@ -172,28 +172,17 @@ jobs:
               "MLFLOW_TRACKING_URI=$MLFLOW_TRACKING_URI" \
               "MLFLOW_TRACKING_USERNAME=$MLFLOW_TRACKING_USERNAME" \
               "MLFLOW_TRACKING_PASSWORD=secretref:mlflow-password" \
-            --output none
+            --query properties.latestRevisionName --output tsv \
+            > "$RUNNER_TEMP/deployed-revision.txt"
 
       - name: Wait until the new revision is ready
         run: |
-          deadline=$((SECONDS + 900))
-          while [ "$SECONDS" -lt "$deadline" ]; do
-            latest=$(az containerapp show -n "$APP_NAME" -g "$RESOURCE_GROUP" \
-              --query properties.latestRevisionName -o tsv)
-            ready=$(az containerapp show -n "$APP_NAME" -g "$RESOURCE_GROUP" \
-              --query properties.latestReadyRevisionName -o tsv)
-            image=$(az containerapp revision show -n "$APP_NAME" -g "$RESOURCE_GROUP" \
-              --revision "$latest" --query 'properties.template.containers[0].image' -o tsv)
-            echo "Latest revision: $latest, latest ready: ${ready:-none}"
-            if [ "$latest" = "$ready" ] && [ "$image" = "$IMAGE" ]; then
-              exit 0
-            fi
-            sleep 15
-          done
-          echo "The new revision did not become ready in time." >&2
-          echo "Container Apps keeps serving the previous healthy revision." >&2
-          echo "Check the logs, then run CT with operation=rollback if the model is the cause." >&2
-          exit 1
+          python -m scripts.wait_for_revision \
+            --app-name "$APP_NAME" \
+            --resource-group "$RESOURCE_GROUP" \
+            --revision "$(cat "$RUNNER_TEMP/deployed-revision.txt")" \
+            --image "$IMAGE" \
+            --timeout 900
 
       - name: Smoke test the public URL
         run: |

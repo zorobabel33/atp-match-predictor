@@ -8,6 +8,9 @@ scikit-learn, versioned data lives in DVC on Azure Blob Storage, runs and models
 shared MLflow registry on DagsHub, and the web app serves the model selected by the `champion`
 alias.
 
+Live demo: [Courtside on Azure](https://atp-match-predictor.happybush-1050e9f8.francecentral.azurecontainerapps.io/).
+See [DEPLOYMENT.md](DEPLOYMENT.md) for deployment checks and recovery.
+
 ## Data source and license
 
 Match data comes from [JeffSackmann/tennis_atp](https://github.com/JeffSackmann/tennis_atp),
