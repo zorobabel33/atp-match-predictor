@@ -289,3 +289,34 @@ python -m ml.pipeline --dataset-version v1   # writes results/decision.json
 python -m ml.pipeline --rollback 1           # move champion back to an approved version
 python -m ml.compare_models                  # model selection on training seasons only
 ```
+
+## Use of AI tools
+
+We used an AI coding assistant (Claude Code) to work faster. Each member is the author of their
+part: we made the design decisions and reviewed and tested the code.
+
+### Enock: data, training pipeline, continuous training, team handoff
+
+My work on the project:
+
+- Problem framing and leakage rules: pre-match features only, a seeded random player order
+  instead of the `winner_*` / `loser_*` columns, a chronological v1 / v2 split.
+- Data: when the original `tennis_atp` repository disappeared, the switch to a pinned archive
+  under the same license; the filters (Davis Cup, walkovers, missing values); versioning with DVC
+  on the course Azure container, tags `data-v1` and `data-v2`.
+- Model and quality gates, calibrated on the 2021 validation season before any evaluation on 2022
+  or 2023. When the real v2 candidate did not improve (-0.0006), I kept the gates and demonstrated
+  promotion and rollback on a separate staging model.
+- Training pipeline, MLflow registry with the `champion` alias, and the CT workflow with rollback.
+- Repository and team organisation: branch protections, stacked pull requests, interface
+  contracts, the issues and briefs that let Paul and Adria work in parallel, and the reviews of
+  their pull requests.
+
+The assistant drafted code, tests and documentation from my specifications and ran routine checks,
+which let me focus on these decisions and on verification. I approved every change and verified
+the results myself (CI, `dvc pull` from a fresh clone, MLflow runs on DagsHub). My commits made
+before 2026-11-23 carry an automatic `Co-Authored-By: Claude` trailer, turned off afterwards.
+
+### Paul and Adria
+
+To be completed by each of them for their part.
