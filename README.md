@@ -45,7 +45,7 @@ feature/* --PR--> dev --PR--> staging --PR--> main
 |---|---|---|---|
 | CI | `ci.yml` | Pull request to `dev`, `staging` or `main` | Required job `ci`: `ruff check`, `pytest`, Linux amd64 Docker build, start the image with an approved local test champion, wait for readiness, verify model metadata, a real prediction and invalid input. No DagsHub or Azure credentials. |
 | CT | `ct.yml` | Manual `workflow_dispatch` from `main` (Actions tab, available once the file is on `main`). Inputs: `operation` (`pipeline` or `rollback`), `dataset_version` (`v1`, `v2`), `rollback_version`. | Job `train`: `dvc pull` the version from Azure, validate it, score the champion, retrain when the policy says so, promote or keep the champion, check that the champion predicts, upload `decision.json`. Rollback moves `champion` to a previously approved version. Job `refresh-online-model` runs only when `champion` moved: it starts a new Container App revision, waits until the public URL serves the expected version, then checks it with a live prediction. Runs are serialized (`concurrency`). |
-| Staging | planned | Push to `staging` | Build the image, start it with a test model and run the smoke test in Actions. |
+| Staging | `staging.yml` | Push to `staging` | Build the image from the merged commit, start it against the approved `atp-match-winner-staging` champion on DagsHub and run the smoke test: readiness, model metadata, a real prediction, invalid input. |
 | Deploy | planned | Push to `main` | Deploy the commit-tagged image to Azure Container Apps, wait for readiness, smoke test the public URL. |
 
 ## Interface contracts

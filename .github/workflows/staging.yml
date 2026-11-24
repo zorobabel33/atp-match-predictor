@@ -1,0 +1,73 @@
+name: Staging
+
+# Validates the release candidate after a merge into staging: the image built from the merged
+# commit runs in this job against the real approved staging model, then the smoke test checks it.
+on:
+  push:
+    branches: [staging]
+
+permissions:
+  contents: read
+
+jobs:
+  staging:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    concurrency:
+      group: atp-staging
+      cancel-in-progress: false
+    env:
+      MODEL_NAME: ${{ vars.STAGING_MODEL_NAME || 'atp-match-winner-staging' }}
+      MLFLOW_TRACKING_URI: ${{ vars.MLFLOW_TRACKING_URI }}
+      MLFLOW_TRACKING_USERNAME: ${{ vars.MLFLOW_TRACKING_USERNAME }}
+      MLFLOW_TRACKING_PASSWORD: ${{ secrets.MLFLOW_TRACKING_PASSWORD }}
+    steps:
+      - name: Check out the code
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: app/requirements.txt
+
+      - name: Install the serving dependencies
+        run: python -m pip install -r app/requirements.txt
+
+      - name: Build the image from the merged commit
+        run: docker build --platform linux/amd64 --tag "atp-app:$GITHUB_SHA" .
+
+      - name: Read the expected staging champion
+        run: python -m scripts.expected_model --output "$RUNNER_TEMP/expected-model.json"
+
+      - name: Start the container with the staging model
+        # Variables without a value are passed from the step environment, so the token never
+        # appears in the command line.
+        run: |
+          docker run --detach --name atp-staging \
+            --publish 127.0.0.1:8000:8000 \
+            --env MLFLOW_TRACKING_URI \
+            --env MLFLOW_TRACKING_USERNAME \
+            --env MLFLOW_TRACKING_PASSWORD \
+            --env MODEL_NAME \
+            --env PORT=8000 \
+            "atp-app:$GITHUB_SHA"
+
+      - name: Smoke test the running container
+        # The app downloads the model at startup, so allow a long readiness wait.
+        run: |
+          python -m scripts.smoke_test \
+            --url http://127.0.0.1:8000 \
+            --expected-model-info "$RUNNER_TEMP/expected-model.json" \
+            --timeout 300
+
+      - name: Show container logs on failure
+        if: failure()
+        run: docker logs atp-staging
+
+      - name: Remove the container
+        if: always()
+        run: docker rm --force atp-staging > /dev/null 2>&1 || true
