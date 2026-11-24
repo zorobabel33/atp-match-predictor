@@ -138,14 +138,40 @@ jobs:
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
-      - name: Deploy the image tagged with the commit SHA
+      - name: Store the DagsHub token as a Container App secret
+        env:
+          MLFLOW_TRACKING_PASSWORD: ${{ secrets.MLFLOW_TRACKING_PASSWORD }}
         run: |
           az extension add --name containerapp --upgrade --only-show-errors
+          az containerapp secret set \
+            --name "$APP_NAME" \
+            --resource-group "$RESOURCE_GROUP" \
+            --secrets "mlflow-password=$MLFLOW_TRACKING_PASSWORD" \
+            --output none
+
+      - name: Point the ingress at the application port
+        run: |
+          az containerapp ingress update \
+            --name "$APP_NAME" \
+            --resource-group "$RESOURCE_GROUP" \
+            --target-port 8000 \
+            --output none
+
+      - name: Deploy the image tagged with the commit SHA
+        env:
+          MLFLOW_TRACKING_URI: ${{ vars.MLFLOW_TRACKING_URI }}
+          MLFLOW_TRACKING_USERNAME: ${{ vars.MLFLOW_TRACKING_USERNAME }}
+        run: |
           az containerapp update \
             --name "$APP_NAME" \
             --resource-group "$RESOURCE_GROUP" \
             --image "$IMAGE" \
-            --set-env-vars "MODEL_NAME=$MODEL_NAME" \
+            --set-env-vars \
+              "MODEL_NAME=$MODEL_NAME" \
+              "PORT=8000" \
+              "MLFLOW_TRACKING_URI=$MLFLOW_TRACKING_URI" \
+              "MLFLOW_TRACKING_USERNAME=$MLFLOW_TRACKING_USERNAME" \
+              "MLFLOW_TRACKING_PASSWORD=secretref:mlflow-password" \
             --output none
 
       - name: Wait until the new revision is ready
