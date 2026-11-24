@@ -15,7 +15,7 @@ RUN python -m pip install --no-compile -r app/requirements.txt \
     && chown app:app /app
 
 COPY app/ ./app/
-COPY ml/__init__.py ml/contract.py ml/model.py ml/registry.py ./ml/
+COPY ml/__init__.py ml/contract.py ml/model.py ml/registry.py ml/drift.py ml/policy.py ./ml/
 
 USER 10001:10001
 EXPOSE 8000

@@ -11,6 +11,35 @@ alias.
 Live demo: [Courtside on Azure](https://atp-match-predictor.happybush-1050e9f8.francecentral.azurecontainerapps.io/).
 See [DEPLOYMENT.md](DEPLOYMENT.md) for deployment checks and recovery.
 
+## Try it
+
+Open the URL above, pick two players, a surface, a tournament level and a match format, then
+predict. The page shows the probability for each player and the model version that answered.
+
+The same service as an API (replace `$APP_URL` with the URL above):
+
+```bash
+curl $APP_URL/model-info
+# {"model_name":"atp-match-winner","model_version":"1","run_id":"e416799e01dc48c0909ab7f5aa1c7c9b","dataset_version":"v1","data_source":"dvc"}
+
+curl -X POST $APP_URL/predict -H 'Content-Type: application/json' -d '{
+  "surface": "Hard", "tourney_level": "G", "best_of": 5,
+  "player_a_rank": 1, "player_a_rank_points": 9500, "player_a_age": 23.5, "player_a_ht": 188, "player_a_hand": "R",
+  "player_b_rank": 45, "player_b_rank_points": 1200, "player_b_age": 29.1, "player_b_ht": 183, "player_b_hand": "L"}'
+# {"probability_player_a_wins":0.9462046235037788,"predicted_winner":"player_a","model_version":"1"}
+```
+
+Sample inputs and the answers of the production model (version 1, 2026-11-24):
+
+| Match | Player A | Player B | P(A wins) | Predicted winner |
+|---|---|---|---|---|
+| Grand Slam, hard, best of 5 | rank 1, 9500 pts, 23.5 y, 188 cm, R | rank 45, 1200 pts, 29.1 y, 183 cm, L | 0.946 | `player_a` |
+| Masters, clay, best of 3 | rank 12, 2800 pts, 27.0 y, 185 cm, L | rank 3, 7000 pts, 24.2 y, 191 cm, R | 0.219 | `player_b` |
+| ATP 250/500, grass, best of 3 | rank 30, 1500 pts, 25.0 y, 196 cm, R | rank 28, 1550 pts, 33.0 y, 180 cm, R | 0.594 | `player_a` |
+
+Values outside the contract are rejected with HTTP 422, for example `"surface": "Carpet"` or
+`"player_a_rank": 0`. `GET /health` and `GET /ready` report liveness and readiness.
+
 ## Data source and license
 
 Match data comes from [JeffSackmann/tennis_atp](https://github.com/JeffSackmann/tennis_atp),
@@ -122,6 +151,13 @@ demonstrations on synthetic releases, see `ml/README_experiments.md`).
 
 ## Local development
 
+### Monitoring exercise
+
+See [MONITORING.md](MONITORING.md) for JSON logs and request IDs, Prometheus metrics, the
+provisioned six-panel Grafana dashboard, local SMTP alerts and model/reference rollback.
+The exercise uses the existing Courtside image and 13-feature contract, with isolated synthetic
+models and a Mailpit inbox by default. It does not modify the public Azure deployment.
+
 ### Docker
 
 Build the production image from the repository root:
@@ -201,9 +237,11 @@ need validation with the team's runtime settings and a pull request, respectivel
 
 ### Web app
 
-The Courtside interface compares two ATP player profiles, lets users edit all 13 input features,
-and shows the predicted winner, each player's probability and the loaded model version. It is
-served by FastAPI at `/`, with no JavaScript build step or external request from the browser.
+The Courtside interface compares two players selected from the ATP catalogue. Ranking, points,
+age, height and hand are fixed to each selected player's snapshot; only surface, tournament
+level and match format can be changed. It shows the predicted winner, each player's probability
+and the loaded model version. FastAPI serves it at `/`, with no JavaScript build step or external
+request from the browser.
 
 ```bash
 python -m venv .venv
@@ -261,9 +299,9 @@ using only synthetic data and a temporary SQLite registry.
 
 `app/static/players.json` contains 200 complete ranked player profiles. It is a dated snapshot
 (2026-06-08), not live rankings. Age is calculated at the ranking date. Unknown height, birth date
-or hand, and values outside `ml.contract`, are excluded without imputation. Fields can be edited
-in the UI; a free profile is also available. Selecting the same named player on both sides is
-rejected by the interface.
+or hand, and values outside `ml.contract`, are excluded without imputation. The interface displays
+player statistics as non-editable values and builds predictions from the selected catalogue
+profiles. Selecting the same player on both sides is rejected by the interface.
 
 Regenerate it with `python -m scripts.build_players`. The script downloads `atp_players.csv` and
 `atp_rankings_current.csv` from the same pinned archive commit as `ml.prepare_data`, caches the
@@ -325,7 +363,7 @@ before 2026-11-23 carry an automatic `Co-Authored-By: Claude` trailer, turned of
 My work on the project:
 
 - The Courtside interface: a sober tennis-inspired design with the two players side by side,
-  searchable player selection, editable statistics, match settings and a probability comparison.
+  searchable player selection, fixed player statistics, match settings and a probability comparison.
   The 200-player catalogue comes from the same pinned archive as the training data, with its
   snapshot date and attribution displayed, so the interface needs no live player API.
 - The inference API: input validation derived from `ml/contract.py`, the agreed `/predict`,

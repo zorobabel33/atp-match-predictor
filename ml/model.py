@@ -7,6 +7,8 @@ from sklearn.pipeline import make_pipeline
 from sklearn.preprocessing import OneHotEncoder, StandardScaler
 
 from ml.contract import CATEGORICAL, FEATURES, LABEL, NUMERIC
+from ml.drift import compare_distributions as compare_distributions
+from ml.drift import training_profile as training_profile
 
 # Chosen on training seasons only (fit 2016-2020, validate 2021). ROC-AUC barely depends on C.
 HYPERPARAMETERS = {"C": 1.0, "max_iter": 1000}

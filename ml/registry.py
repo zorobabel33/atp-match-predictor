@@ -1,7 +1,10 @@
 """Read and update the approved model used by production inference."""
 
+import json
 import os
 import time
+from pathlib import Path
+from tempfile import TemporaryDirectory
 
 import mlflow
 import mlflow.sklearn
@@ -12,6 +15,7 @@ from mlflow import MlflowClient
 from mlflow.exceptions import MlflowException
 from mlflow.models import infer_signature
 
+from ml.drift import validate_profile
 from ml.model import features
 
 CHAMPION = "champion"
@@ -49,6 +53,24 @@ def get_champion(client, name):
 def load_version(version):
     # Resolve the mutable alias once, then load an immutable version for this execution.
     return mlflow.sklearn.load_model(f"models:/{version.name}/{version.version}")
+
+
+def load_training_profile(client, version):
+    """Read the profile of this immutable approved version, including after a rollback."""
+    approval = version.tags.get("approval_run_id")
+    if not approval:
+        raise ValueError("The approved version has no reference run")
+    with TemporaryDirectory(prefix="atp-profile-") as folder:
+        path = Path(client.download_artifacts(approval, "training-profile.json", folder))
+        if path.stat().st_size > 1_000_000:
+            raise ValueError("Reference profile is too large")
+        profile = validate_profile(json.loads(path.read_text()))
+    if (profile.get("model_run_id") != version.run_id
+            or profile.get("dataset_version") != version.tags.get("dataset_version")
+            or (version.tags.get("data_source") == "dvc"
+                and profile.get("dvc_md5") != version.tags.get("dvc_md5"))):
+        raise ValueError("Reference provenance does not match the loaded model")
+    return profile
 
 
 def record_candidate(estimator, train, metadata):
