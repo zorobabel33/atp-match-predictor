@@ -9,7 +9,7 @@ from mlflow import MlflowClient
 from ml import pipeline, policy
 from ml.pipeline import main
 from ml.predict import main as predict
-from ml.registry import APPROVAL_TAG, CHAMPION
+from ml.registry import APPROVAL_TAG, CHAMPION, load_training_profile
 from tests.synthetic import write_release
 
 MODEL = "atp-test"
@@ -54,11 +54,16 @@ def test_bootstrap_then_retain_on_the_same_release(registry, tmp_path):
     assert version.tags["dataset_version"] == "v1"
     assert decision["git_sha"] and decision["data_source"] == "local"
     assert "dvc_md5" not in decision
+    profile = load_training_profile(registry, version)
+    assert profile["model_run_id"] == version.run_id and profile["dataset_version"] == "v1"
 
     code, decision = run(tmp_path, "--dataset-version", "v1")
     assert code == 0
     assert decision["decision"] == "retain_no_retraining" and decision["retrained"] is False
     assert champion(registry) == "1"
+    assert load_training_profile(registry, version) == profile
+    drift = json.loads((tmp_path / "results" / "drift.json").read_text())
+    assert drift["reference_version"] == "1" and drift["threshold"] == policy.DRIFT_THRESHOLD
 
 
 def test_new_release_retrains_and_promotes_a_better_candidate(registry, tmp_path):

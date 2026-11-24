@@ -2,6 +2,10 @@
 __pycache__/
 *.pyc
 .env
+.env.*
+!.env.monitoring.example
+.exercise-data/
+.exercise-results/
 .pytest_cache/
 .ruff_cache/
 raw/

@@ -5,6 +5,7 @@
 !app/
 !app/__init__.py
 !app/main.py
+!app/monitoring.py
 !app/requirements.txt
 !app/static/
 !app/static/**
@@ -13,6 +14,8 @@
 !ml/contract.py
 !ml/model.py
 !ml/registry.py
+!ml/drift.py
+!ml/policy.py
 
 # Never include development artifacts, even if created inside an allowed static directory.
 **/.git
