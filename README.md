@@ -292,8 +292,8 @@ python -m ml.compare_models                  # model selection on training seaso
 
 ## Use of AI tools
 
-We used AI coding assistants (Claude Code and ChatGPT) to help implement and check the
-project. Each member describes their responsibilities and use of these tools below.
+We used AI coding assistants (Claude Code and ChatGPT) to work faster. Each member is the author
+of their part: we made the design decisions and reviewed and tested the code.
 
 ### Enock: data, training pipeline, continuous training, team handoff
 
@@ -317,14 +317,32 @@ which let me focus on these decisions and on verification. I approved every chan
 the results myself (CI, `dvc pull` from a fresh clone, MLflow runs on DagsHub). My commits made
 before 2026-11-23 carry an automatic `Co-Authored-By: Claude` trailer, turned off afterwards.
 
-### Paul and Adria
+### Paul: web app, application tests, Docker, CI
 
-paul
+My work on the project:
 
-j'ai choisi une interface sobre avec les deux joueurs côte à côte
+- The Courtside interface: a sober tennis-inspired design with the two players side by side,
+  searchable player selection, editable statistics, match settings and a probability comparison.
+  The 200-player catalogue comes from the same pinned archive as the training data, with its
+  snapshot date and attribution displayed, so the interface needs no live player API.
+- The inference API: input validation derived from `ml/contract.py`, the agreed `/predict`,
+  `/health`, `/ready` and `/model-info` endpoints, and the approved `champion` resolved once at
+  startup to a concrete version. Readiness requires a successful model prediction.
+- Application tests on a temporary local MLflow registry: prediction format, malformed and
+  out-of-range inputs, unavailable or unapproved models, and the original champion remaining
+  loaded when a newer approved version exists or the alias changes. The integrated project
+  suite passed 141 tests without DagsHub or Azure credentials.
+- The production Docker image: Python 3.12 slim, serving dependencies only, a non-root user and
+  an allowlist `.dockerignore`. The model is fetched at runtime, with credentials and training
+  datasets kept out of the image.
+- The required `ci` job: Linux amd64 Docker build, container startup with a synthetic approved
+  champion, a readiness wait and HTTP smoke checks for model metadata, a real prediction and
+  invalid-input rejection. A disposable container with a deliberately broken `/predict`
+  confirmed that the smoke check fails on a regression.
 
-ma partie couvre le site les tests docker et la ci
+ChatGPT helped generate the implementation, tests and Docker/CI configuration, split the work
+into smaller tasks, troubleshoot integration and explain the development workflow.
 
-ChatGPT m'a aidé à avancer par petites tâches à produire le code et à comprendre les différentes étapes du projet
+### Adria: deployment
 
-**Adria:** To be completed.
+To be completed by Adria.
