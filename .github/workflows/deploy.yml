@@ -37,7 +37,10 @@ jobs:
         run: python -m pip install -r requirements-dev.txt
 
       - name: Build the image
-        run: docker build --platform linux/amd64 --tag "$IMAGE:$GITHUB_SHA" .
+        run: |
+          docker build --platform linux/amd64 \
+            --label "org.opencontainers.image.source=https://github.com/$GITHUB_REPOSITORY" \
+            --tag "$IMAGE:$GITHUB_SHA" .
 
       - name: Create the local test registry
         run: python -m tests.make_test_registry --output-dir "$RUNNER_TEMP/atp-registry"
