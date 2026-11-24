@@ -41,12 +41,47 @@ The DagsHub password is also stored as a Container App secret and exposed to the
 | Event | Workflow | Job | What happens |
 |---|---|---|---|
 | Pull request to `dev`, `staging` or `main` | `ci.yml` | `ci` | Lint, tests, Docker build and container smoke test |
-| Push (merge) to `staging` | staging workflow | staging | Build the image tagged with the commit SHA, start it in Actions with a test model, wait for `/ready`, run the smoke test |
+| Push (merge) to `staging` | staging workflow | staging | Build the image tagged with the commit SHA, start it in Actions with the approved DagsHub staging champion, wait for `/ready`, run the smoke test |
 | Push (merge) to `main` | deploy workflow | build, deploy | Build or select the verified image for the commit, deploy it to Azure Container Apps, wait for `/ready`, smoke test the public URL |
 | Manual run from `main` | `ct.yml` | `train` | Run the training pipeline or a rollback |
 | Manual run from `main`, when `champion` moved | `ct.yml` | `refresh-online-model` | Start a new revision, wait for `/ready`, check the loaded version with a live prediction |
 
 Deployment jobs use a `concurrency` group so two deployments never overlap.
+
+Deploy records the revision returned by the image update, then checks that exact revision
+through `az containerapp revision show`. It must be active, provisioned, healthy and running,
+with the expected commit-tagged image. The check does not require the app-level
+`latestReadyRevisionName` field. The public HTTP smoke test remains a separate required step.
+
+## First deployment and health probes
+
+The initial Container App was created with the Azure quickstart image on port 80. Deploy
+stores the DagsHub password as the `mlflow-password` Container App secret, switches the ingress
+to port 8000 and replaces the quickstart image with the commit-tagged application image.
+The GHCR package must be public so Azure can pull it without registry credentials.
+
+Verify the following HTTP probes in Azure Portal after replacing the quickstart image:
+Container Apps, `atp-match-predictor`, Containers, Edit and deploy, Health probes. Do not assume
+that a Docker `HEALTHCHECK` configures Azure probes.
+
+| Probe | Path | Port | Period | Failure threshold | Timeout |
+|---|---|---|---|---|---|
+| Startup | `/ready` | 8000 | 10 seconds | 30 | 5 seconds |
+| Liveness | `/health` | 8000 | 10 seconds | 3 | 5 seconds |
+| Readiness | `/ready` | 8000 | 10 seconds | 3 | 5 seconds |
+
+Startup allows up to five minutes to load and test the champion. Readiness must use HTTP
+`/ready`, which stays unavailable until a real prediction succeeds; a TCP port check alone
+does not establish that the model is ready. Saving probes creates a new revision. Repeat the
+public smoke test after it becomes healthy. These are required settings to verify in the
+resource, rather than a claim that the initial quickstart configuration already included them.
+
+If `azure/login` fails with `AADSTS700213`, compare the assertion subject in the failed job
+with the managed identity's federated credentials. This repository presents subjects that
+include the numeric owner and repository IDs. The identity must trust the exact subject for
+`refs/heads/main` (and `staging` when needed), issuer
+`https://token.actions.githubusercontent.com`, audience `api://AzureADTokenExchange`.
+An Azure resource owner must make identity changes; no additional client secret is needed.
 
 ## Smoke test
 
