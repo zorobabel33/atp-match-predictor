@@ -208,3 +208,20 @@ def test_demo_wait_tolerates_an_empty_scrape_during_restart(monkeypatch):
     monkeypatch.setattr(monitoring_check.time, "sleep", lambda seconds: None)
     assert monitoring_check.wait(lambda: next(observations)[0]["version"] == "2",
                                  "version scraped", timeout=1)
+
+
+def test_demo_registry_keeps_container_paths_on_windows(tmp_path):
+    from mlflow import MlflowClient
+
+    from scripts.monitoring_demo import container_uri, store_container_uris
+
+    windows = "file:///C:/registry/artifacts/abc/artifacts"
+    assert container_uri(windows) == "file:///registry/artifacts/abc/artifacts"
+    assert container_uri("file:///registry/artifacts") == "file:///registry/artifacts"
+    uri = f"sqlite:///{tmp_path / 'mlflow.db'}"
+    client = MlflowClient(uri, uri)
+    run = client.create_run(client.create_experiment("demo", "file:///registry/artifacts"))
+    store_container_uris(tmp_path / "mlflow.db")
+    assert client.get_run(run.info.run_id).info.artifact_uri == (
+        f"file:///registry/artifacts/{run.info.run_id}/artifacts")
+    assert client.get_experiment_by_name("demo").artifact_location == "file:///registry/artifacts"
