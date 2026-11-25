@@ -2,6 +2,9 @@
 
 import argparse
 import json
+import re
+import sqlite3
+from contextlib import closing
 from pathlib import Path
 
 import mlflow
@@ -16,6 +19,21 @@ from tests.synthetic import make_split
 NAME = "atp-match-winner-monitoring-demo"
 ROOT = Path(__file__).resolve().parents[1]
 REGISTRY = ROOT / "results" / "monitoring-demo"
+
+
+def container_uri(uri):
+    # MLflow on Windows adds the host drive (file:///C:/registry). The API reads this registry
+    # inside its Linux container at /registry, so the stored URIs must not contain a drive.
+    return re.sub(r"^file:///[A-Za-z]:/registry/", "file:///registry/", uri)
+
+
+def store_container_uris(database):
+    with closing(sqlite3.connect(database)) as connection, connection:
+        for table, column, key in [("experiments", "artifact_location", "experiment_id"),
+                                   ("runs", "artifact_uri", "run_uuid")]:
+            rows = connection.execute(f"SELECT {key}, {column} FROM {table}").fetchall()
+            connection.executemany(f"UPDATE {table} SET {column} = ? WHERE {key} = ?",
+                                   [(container_uri(value), row_id) for row_id, value in rows])
 
 
 def prepare():
@@ -41,8 +59,7 @@ def prepare():
                                  signature=infer_signature(sample,
                                                            model.predict_proba(sample)[:, 1]),
                                  pip_requirements=str(ROOT / "app" / "requirements.txt"))
-        artifact = REGISTRY / Path(run.info.artifact_uri.removeprefix("file://")).relative_to(
-            "/registry")
+        artifact = REGISTRY / "artifacts" / run.info.run_id / "artifacts"
         artifact.mkdir(parents=True)
         (artifact / "training-profile.json").write_text(json.dumps(training_profile(
             train, model_run_id=run.info.run_id, dataset_version=version, data_source="synthetic",
@@ -54,6 +71,7 @@ def prepare():
                                         "data_source": "synthetic"})
         client.set_terminated(run.info.run_id)
     client.set_registered_model_alias(NAME, CHAMPION, "1")
+    store_container_uris(REGISTRY / "mlflow.db")
     # This is deliberately shifted synthetic traffic, not an additional DVC tennis release.
     shifted = make_split([2024], 868, driver="rank", seed=99)
     shifted["surface"] = "Grass"
